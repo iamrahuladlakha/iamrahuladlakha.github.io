@@ -7,12 +7,12 @@ source_id: "agent-harness"
 math: false
 ---
 {% raw %}
-<p>Put the same model in a chat box and it answers questions. Put it inside a repository with tests, memory, a review
-step and a set of permissions, and it can ship software. The weights didn't change. What changed is everything
+<p>Give a model a chat window and you get answers. Give the identical model a codebase, a test suite, somewhere to
+keep notes, a reviewer and a clear set of permissions, and you get working software. The weights didn't change. What changed is everything
 around them, and that "everything around them" now has a name: the <strong>harness</strong>.</p>
 
 <p>I've spent the last few weeks studying how teams build agents that survive real
-workloads. The pattern I keep seeing is that the hard engineering has moved out of the prompt and into the system
+workloads. The pattern I keep seeing is that the difficult work no longer lives in prompt wording; it lives in the machinery
 that surrounds the model. This post is my attempt to pin down what a harness is, how it works, and what it means
 when you're the one designing one for production.</p>
 
@@ -23,8 +23,8 @@ familiar. Edit the prompt. If that fails, switch models. If that fails, enlarge 
 cheap to try, which is exactly why we reach for them first.</p>
 
 <p>But the cause is usually not the model. It's the environment: missing context, vague tools, no durable state, no
-checks. One team building an agent-first codebase found early progress was slow because the environment was
-underspecified, not because the model lacked capability. Think of a capable new hire who keeps making mistakes
+checks. One team building an agent-first codebase saw its agents stall at first, and the fix wasn't a smarter
+model: the agents simply hadn't been told enough about the world they were working in. Think of a capable new hire who keeps making mistakes
 because nobody gave them the project brief, the right logins or a checklist. Repeating the instructions louder
 doesn't help.</p>
 
@@ -91,8 +91,8 @@ with an append-only history underneath that outlives any single run.</p>
   </g>
 </svg>
 
-<p>The consequence of this shape is what I find most useful as an architect. If the sandbox dies, the history
-survives. If you swap the model, the tools and policy stay inspectable. A resumed task can rebuild its state from
+<p>The consequence of this shape is what I find most useful as an architect. A crashed sandbox loses nothing
+that matters, because the record lives elsewhere. A new model drops in while the tools and policy stay open to inspection. A resumed task can rebuild its state from
 artefacts and traces rather than from a conversation that may no longer exist.</p>
 
 <p>The other key move is that <strong>the loop belongs to the harness</strong>. "Keep trying until it works" isn't a
@@ -172,20 +172,20 @@ logs, find where its judgement differs from yours, update its instructions.</p>
 adds latency, cost and maintenance. The 20× figure above is the extreme case. A useful ladder: level 0 is prompt +
 model; level 1 adds a project guide and tools; level 2 adds structured state, tests and a bounded loop; level 3 adds
 permissions, traces, recovery and human gates. A short, low-risk task needs level 1. A six-hour run that edits files
-and opens pull requests needs level 3. The rule I've adopted: <em>the harness should be smaller than the failure
-surface it controls.</em></p>
+and opens pull requests needs level 3. My rule of thumb: <em>match the weight of the harness to how much can go
+wrong</em>, and no more.</p>
 
 <p><strong>Long runs need a context strategy, not just a bigger window.</strong> On long tasks, models lose coherence as
-their context fills, and some start wrapping up early as they approach what they believe is their limit ("context
-anxiety"). You have two options. <em>Compaction</em> summarises earlier conversation in place and keeps the same agent
+their context fills, and some rush to finish as they sense the window running out, a behaviour
+often called "context anxiety". You have two options. <em>Compaction</em> summarises earlier conversation in place and keeps the same agent
 going: you keep continuity, but there's no clean slate, so the anxiety can persist. A <em>context reset</em> starts a
 fresh agent with a structured handoff file of state and next steps: you get a clean slate, but the handoff has to carry
 everything. Either way, it's durable state doing the work. Agents handing off through files they each read and write is
 simple and, crucially, inspectable.</p>
 
 <p><strong>Every component is an assumption with a shelf life.</strong> This was the insight that changed how I think
-about maintenance. Each part of a harness encodes an assumption about what the model can't do alone, and those
-assumptions go stale. When a stronger model arrived, the team removed parts one at a time to see which were still
+about maintenance. Every piece of a harness exists because of a bet that the model can't yet manage something on its
+own, and those bets expire. When a stronger model arrived, the team removed parts one at a time to see which were still
 load-bearing. The sprint structure became unnecessary. The planner still stopped the builder from under-scoping. The
 evaluator was worth its cost only when the task sat beyond what the model did reliably alone. The slimmed harness built
 a browser-based music studio in about 4 hours for about $124 in tokens, and the evaluator still caught features that
