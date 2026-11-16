@@ -14,3 +14,5 @@ future: true
 defaults:
   - scope: { path: "" }
     values: { image: /images/avatar.jpg }
+webmaster_verifications:
+  google: 0My3PIt_xr16vYfFFQhNVbnfdb4MLX4s89rsuuE_I2k
