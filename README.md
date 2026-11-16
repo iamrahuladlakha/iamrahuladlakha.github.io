@@ -1,4 +1,4 @@
-# raadlak.github.io
+# iamrahuladlakha.github.io
 
 Personal site and AI blog of Rahul Adlakha, built by GitHub Pages (Jekyll).
 

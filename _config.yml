@@ -1,9 +1,9 @@
 title: Rahul Adlakha
 tagline: AI Solution Architect
 description: Rahul Adlakha, AI Solution Architect, writes about AI — agents, LLM systems and how they reach production.
-url: https://raadlak.github.io
+url: https://iamrahuladlakha.github.io
 author: { name: Rahul Adlakha, email: rahuladlakha90@gmail.com }
-social: { name: Rahul Adlakha, links: [https://www.linkedin.com/in/rahuladlakha/, https://github.com/raadlak] }
+social: { name: Rahul Adlakha, links: [https://www.linkedin.com/in/rahuladlakha/, https://github.com/iamrahuladlakha] }
 avatar: /images/avatar.jpg
 permalink: /blog/:title/
 plugins: [jekyll-seo-tag, jekyll-sitemap, jekyll-feed]
