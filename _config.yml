@@ -8,7 +8,7 @@ avatar: /images/avatar.jpg
 permalink: /blog/:title/
 plugins: [jekyll-seo-tag, jekyll-sitemap, jekyll-feed]
 feed: { path: feed.xml }
-exclude: [README.md]
+exclude: [README.md, Gemfile, Gemfile.lock, node_modules, vendor]
 timezone: Asia/Kolkata
 future: true
 defaults:
