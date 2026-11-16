@@ -69,10 +69,14 @@
   var typing = document.querySelector("[data-typing]");
   if (typing && !reduceMotion.matches) {
     var full = typing.textContent;
-    typing.setAttribute("aria-label", full);
     typing.textContent = "";
+    // Real text stays available to assistive tech; only the animated copy is hidden from it.
+    var srText = document.createElement("span");
+    srText.className = "sr-only";
+    srText.textContent = full;
     var textNode = document.createElement("span");
     textNode.setAttribute("aria-hidden", "true");
+    typing.appendChild(srText);
     typing.appendChild(textNode);
     typing.classList.add("is-typing");
     var i = 0;

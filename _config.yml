@@ -9,3 +9,8 @@ permalink: /blog/:title/
 plugins: [jekyll-seo-tag, jekyll-sitemap, jekyll-feed]
 feed: { path: feed.xml }
 exclude: [README.md]
+timezone: Asia/Kolkata
+future: true
+defaults:
+  - scope: { path: "" }
+    values: { image: /images/avatar.jpg }
