@@ -1,0 +1,230 @@
+---
+layout: post
+title: "The Agent Harness: Where the Real Engineering in AI Agents Lives"
+description: "Why most agent failures are environment failures, the seven jobs of a production harness, and what that means for cost, latency and model upgrades."
+tags: ["agents", "harness", "llm", "architecture"]
+source_id: "agent-harness"
+math: false
+---
+{% raw %}
+<p>Put the same model in a chat box and it answers questions. Put it inside a repository with tests, memory, a review
+step and a set of permissions, and it can ship software. The weights didn't change. What changed is everything
+around them, and that "everything around them" now has a name: the <strong>harness</strong>.</p>
+
+<p>I've spent the last few weeks studying how teams build agents that survive real
+workloads. The pattern I keep seeing is that the hard engineering has moved out of the prompt and into the system
+that surrounds the model. This post is my attempt to pin down what a harness is, how it works, and what it means
+when you're the one designing one for production.</p>
+
+<h2>The problem: we keep fixing the wrong layer</h2>
+
+<p>When an agent misbehaves (it forgets a decision, picks the wrong tool, skips verification, or loops), the reflex is
+familiar. Edit the prompt. If that fails, switch models. If that fails, enlarge the context window. Each step is
+cheap to try, which is exactly why we reach for them first.</p>
+
+<p>But the cause is usually not the model. It's the environment: missing context, vague tools, no durable state, no
+checks. One team building an agent-first codebase found early progress was slow because the environment was
+underspecified, not because the model lacked capability. Think of a capable new hire who keeps making mistakes
+because nobody gave them the project brief, the right logins or a checklist. Repeating the instructions louder
+doesn't help.</p>
+
+<p>There's a second, subtler problem. A model is probabilistic. If the same model plans an action, decides whether
+that action is allowed, and then judges whether the result is good, one confident mistake passes every check. That's
+the equivalent of letting one person write a cheque, approve it and cash it. Picture an agent marking its own pull
+request "done" while the tests it skipped would have failed. Nothing in the system was positioned to say no.</p>
+
+<p>So the working definition I've landed on: <strong>the harness is everything around the model that turns it into a
+reliable agent: what it's asked to do, what it can see, which tools it can use, what it remembers, how its work is
+checked, what it's allowed to do, and the record of what happened.</strong> Harness engineering is the discipline of
+designing that environment, and treating each agent failure as a missing piece of it.</p>
+
+<h2>How it works: seven jobs and a loop the model doesn't own</h2>
+
+<p>The clearest breakdown I've found splits a production harness into seven jobs:</p>
+
+<ol>
+  <li><strong>A task contract.</strong> Turn the request into a bounded object before acting: goal, inputs, output,
+    constraints, and an explicit "done when".</li>
+  <li><strong>A map.</strong> A small guide to where knowledge lives, loaded only when needed. For example, a root
+    <code>AGENTS.md</code> that points to the architecture, testing and security guides rather than inlining them.</li>
+  <li><strong>The right tools.</strong> Each with a clear purpose, predictable output, a defined failure state and a
+    permission boundary.</li>
+  <li><strong>Durable state.</strong> Decisions, artefacts and failures kept outside the conversation, so they
+    survive a crash or a context reset.</li>
+  <li><strong>Sensors.</strong> Checks that turn quality into evidence: tests, linters, screenshots, schema
+    validators.</li>
+  <li><strong>Permissions outside the model.</strong> The model suggests, policy checks, the tool executes. Deploy and
+    delete need human approval.</li>
+  <li><strong>Traces and recovery.</strong> A readable trail of every run (context used, tool calls, state changes,
+    retries, cost) and a point to roll back to.</li>
+</ol>
+
+<p>The way I picture the split: the model is the brain, the tools are the hands, and the harness sits between them,
+with an append-only history underneath that outlives any single run.</p>
+
+<svg viewBox="0 0 440 200" width="100%" style="max-width:600px" role="img" aria-label="The model proposes an action to the harness; the harness checks policy and evidence and passes only authorised actions to tools in a sandbox; every step is written to an append-only history">
+  <defs><marker id="hb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="11" text-anchor="middle" style="fill: var(--text)">
+    <rect x="10" y="30" width="100" height="50" rx="8" style="fill: var(--surface); stroke: var(--accent)" stroke-width="2"/>
+    <text x="60" y="52" style="fill: var(--accent)">model</text><text x="60" y="68" font-size="9" style="fill: var(--muted)">reasons, proposes</text>
+    <rect x="160" y="15" width="120" height="80" rx="8" style="fill: var(--surface); stroke: var(--text)" stroke-width="2"/>
+    <text x="220" y="36">harness</text>
+    <text x="220" y="52" font-size="9" style="fill: var(--muted)">contract · map · state</text>
+    <text x="220" y="65" font-size="9" style="fill: var(--muted)">sensors · policy</text>
+    <text x="220" y="78" font-size="9" style="fill: var(--muted)">bounded loop</text>
+    <rect x="330" y="30" width="100" height="50" rx="8" style="fill: var(--surface); stroke: var(--border)" stroke-width="2"/>
+    <text x="380" y="52">tools</text><text x="380" y="68" font-size="9" style="fill: var(--muted)">run in a sandbox</text>
+    <rect x="130" y="140" width="180" height="44" rx="8" style="fill: var(--code-bg); stroke: var(--border)" stroke-dasharray="4 3"/>
+    <text x="220" y="160">history</text><text x="220" y="174" font-size="9" style="fill: var(--muted)">append-only trace, survives a crash</text>
+  </g>
+  <g fill="none" style="stroke: var(--muted)">
+    <path d="M110,45 L158,45" marker-end="url(#hb-arrow)"/>
+    <path d="M158,68 L112,68" marker-end="url(#hb-arrow)"/>
+    <path d="M280,55 L328,55" marker-end="url(#hb-arrow)"/>
+    <path d="M220,95 L220,138" marker-end="url(#hb-arrow)"/>
+  </g>
+  <g font-size="9" style="fill: var(--muted)">
+    <text x="114" y="38">proposes</text>
+    <text x="114" y="82">evidence</text>
+    <text x="284" y="48">authorised</text>
+    <text x="226" y="122">every step</text>
+  </g>
+</svg>
+
+<p>The consequence of this shape is what I find most useful as an architect. If the sandbox dies, the history
+survives. If you swap the model, the tools and policy stay inspectable. A resumed task can rebuild its state from
+artefacts and traces rather than from a conversation that may no longer exist.</p>
+
+<p>The other key move is that <strong>the loop belongs to the harness</strong>. "Keep trying until it works" isn't a
+control system. A harness loop has evidence, a retry cap, a budget and a way to escalate. In each attempt the agent
+builds an artefact from the current task state, the sensors verify it, and if the evidence passes the artefact is
+returned. If not, the gap the sensors found is added to the state and the next attempt starts. After the cap (often
+three), the harness stops and hands the task to a person.</p>
+
+<svg viewBox="0 0 440 170" width="100%" style="max-width:600px" role="img" aria-label="A bounded loop: build from state, verify with sensors, return on pass, otherwise add the gap to state and retry until the cap, then escalate to a person">
+  <defs><marker id="hl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="11" text-anchor="middle" style="fill: var(--text)">
+    <rect x="10" y="20" width="90" height="40" rx="8" style="fill: var(--surface); stroke: var(--border)"/><text x="55" y="44">task state</text>
+    <rect x="130" y="20" width="90" height="40" rx="8" style="fill: var(--surface); stroke: var(--accent)" stroke-width="2"/><text x="175" y="38" style="fill: var(--accent)">build</text><text x="175" y="51" font-size="9" style="fill: var(--muted)">model</text>
+    <rect x="250" y="20" width="90" height="40" rx="8" style="fill: var(--surface); stroke: var(--text)"/><text x="295" y="38">verify</text><text x="295" y="51" font-size="9" style="fill: var(--muted)">sensors</text>
+    <rect x="360" y="20" width="70" height="40" rx="8" style="fill: var(--surface); stroke: var(--text)"/><text x="395" y="44">return</text>
+    <rect x="130" y="110" width="120" height="40" rx="8" style="fill: var(--surface); stroke: var(--border)"/><text x="190" y="128">add the gap</text><text x="190" y="141" font-size="9" style="fill: var(--muted)">attempt + 1, cap N</text>
+    <rect x="300" y="110" width="130" height="40" rx="8" style="fill: var(--code-bg); stroke: var(--border)" stroke-dasharray="4 3"/><text x="365" y="134">escalate to a person</text>
+  </g>
+  <g fill="none" style="stroke: var(--muted)">
+    <path d="M100,40 L128,40" marker-end="url(#hl-arrow)"/>
+    <path d="M220,40 L248,40" marker-end="url(#hl-arrow)"/>
+    <path d="M340,40 L358,40" marker-end="url(#hl-arrow)"/>
+    <path d="M295,60 L295,85 L190,85 L190,108" marker-end="url(#hl-arrow)"/>
+    <path d="M130,130 L55,130 L55,62" marker-end="url(#hl-arrow)"/>
+    <path d="M250,130 L298,130" marker-end="url(#hl-arrow)"/>
+  </g>
+  <g font-size="9" style="fill: var(--muted)">
+    <text x="342" y="32">pass</text>
+    <text x="300" y="80">fail</text>
+    <text x="256" y="124">cap hit</text>
+  </g>
+</svg>
+
+<p>The division of labour is the point: <strong>the model decides <em>how</em> to repair; the harness decides
+<em>whether</em> another attempt is allowed.</strong></p>
+
+<h2>A worked example: a bug-fixing agent that leaves receipts</h2>
+
+<p>Take a team that gives a coding agent bug tickets and lets it open pull requests. Every run leaves a <em>change
+receipt</em>, which is jobs 4, 5 and 7 made concrete:</p>
+
+<table>
+  <tr><th>Field</th><th>This run</th></tr>
+  <tr><td>context used</td><td>the ticket, the repository map, the design spec</td></tr>
+  <tr><td>tools used</td><td>shell, browser, tests</td></tr>
+  <tr><td>tests</td><td>42 passed, 0 failed</td></tr>
+  <tr><td>retries</td><td>2 (cap: 3)</td></tr>
+  <tr><td>human corrections</td><td>1</td></tr>
+  <tr><td>cost</td><td>$3.84</td></tr>
+  <tr><td>rollback point</td><td>the commit before the change</td></tr>
+</table>
+
+<p>Two retries against a cap of three means the loop came within one attempt of escalating. That's a signal worth
+watching across runs, not just within one.</p>
+
+<p>The part I like most is how this team handles a failure. An agent once made UI code query the database directly.
+They didn't just add a line to the prompt. They kept the rule as guidance the agent reads ("UI may not query the
+database") <em>and</em> added a lint check that fails the build when it happens. No future run depends on the model
+remembering. That's what "turning a failure into infrastructure" means: every failure should update a guide, a test,
+a tool or a policy.</p>
+
+<p>A harness for long-running app building pushes the same idea further. It uses three agents: a
+<strong>planner</strong> that turns a one-to-four-sentence prompt into a full product spec, a <strong>generator</strong>
+that builds it, and an <strong>evaluator</strong> that clicks through the running app with a browser tool, files bugs
+and grades against criteria. Before each chunk of work, generator and evaluator agreed on a contract for what "done"
+meant, with 27 test criteria for one level-editor sprint. Compared with a single agent on the same prompt (a retro game
+maker), the harness cost over 20× more. But only its game was actually playable.</p>
+
+<p>The reason for the separate evaluator is the cheque problem again. Asked to grade their own work, agents tend to
+praise it confidently even when it's mediocre, especially on subjective tasks with no test to run. A separate,
+sceptical evaluator with concrete criteria is a much stronger check. It still drifts lenient, so you tune it: read its
+logs, find where its judgement differs from yours, update its instructions.</p>
+
+<h2>Architecture and production implications</h2>
+
+<p><strong>Cost and latency scale with the harness, so size it to the risk.</strong> Every check, gate and state store
+adds latency, cost and maintenance. The 20× figure above is the extreme case. A useful ladder: level 0 is prompt +
+model; level 1 adds a project guide and tools; level 2 adds structured state, tests and a bounded loop; level 3 adds
+permissions, traces, recovery and human gates. A short, low-risk task needs level 1. A six-hour run that edits files
+and opens pull requests needs level 3. The rule I've adopted: <em>the harness should be smaller than the failure
+surface it controls.</em></p>
+
+<p><strong>Long runs need a context strategy, not just a bigger window.</strong> On long tasks, models lose coherence as
+their context fills, and some start wrapping up early as they approach what they believe is their limit ("context
+anxiety"). You have two options. <em>Compaction</em> summarises earlier conversation in place and keeps the same agent
+going: you keep continuity, but there's no clean slate, so the anxiety can persist. A <em>context reset</em> starts a
+fresh agent with a structured handoff file of state and next steps: you get a clean slate, but the handoff has to carry
+everything. Either way, it's durable state doing the work. Agents handing off through files they each read and write is
+simple and, crucially, inspectable.</p>
+
+<p><strong>Every component is an assumption with a shelf life.</strong> This was the insight that changed how I think
+about maintenance. Each part of a harness encodes an assumption about what the model can't do alone, and those
+assumptions go stale. When a stronger model arrived, the team removed parts one at a time to see which were still
+load-bearing. The sprint structure became unnecessary. The planner still stopped the builder from under-scoping. The
+evaluator was worth its cost only when the task sat beyond what the model did reliably alone. The slimmed harness built
+a browser-based music studio in about 4 hours for about $124 in tokens, and the evaluator still caught features that
+were display-only. So: re-test the harness on every model upgrade, and delete what no longer earns its place. Change
+receipts are what make those upgrades comparable.</p>
+
+<p><strong>Know where your interface ends and your harness begins.</strong> A distinction I find helpful in
+architecture reviews: the <em>interface</em> is what a person uses (a terminal app, a desktop window, a chat page), and
+the <em>harness</em> underneath turns the model's text into actions. At minimum that's tools, a syntax for calling them,
+a parser that runs the calls, a way to hand results back, and the list of tools with their descriptions. In this
+narrow framing, a coding assistant's terminal app is an interface on top of an agent SDK, and the same harness can sit
+under several interfaces. Some people use the word more widely and call the whole coding assistant a harness. I use the
+wider definition in this post, but the narrow one is a good test for what's swappable in your own stack.</p>
+
+<p><strong>What I'd do differently next time.</strong> Write the "done when" before writing the agent. Put permission
+checks in code from day one, not in the system prompt. Give every loop a cap and a budget before the first run, not
+after the first runaway bill. And keep a pre-production checklist: success defined before execution; isolated
+execution; decisions stored outside the conversation; approval on irreversible actions; a retry cap and budget on every
+loop; resumable runs; explainable tool calls; every failure updating a guide, test, tool or policy; rollback for every
+artefact.</p>
+
+<h2>Takeaways</h2>
+
+<ul>
+  <li>Most agent failures are environment failures. Before you edit the prompt or switch models, ask which of the seven
+    jobs is missing.</li>
+  <li>Separate the roles. The model proposes; the harness checks policy and evidence; tools execute only what was
+    authorised. Don't let the builder be its own judge.</li>
+  <li>Own the loop. Retry caps, budgets and escalation belong to the harness, not the model.</li>
+  <li>Encode each failure twice: as guidance the agent reads and as a check it can't bypass.</li>
+  <li>Treat harness components as assumptions. Re-test them on each new model and remove what's no longer
+    load-bearing.</li>
+  <li>The durable advantage is here. Models change every few months; tools, tests, state, policies and traces keep
+    compounding.</li>
+</ul>
+
+<p>The chef analogy stuck with me: the model is the chef, and the harness is the kitchen, with its order tickets,
+recipe binder, tasting before plating, the head chef's sign-off on anything special, and the log of every order. The
+same chef cooks very differently in a well-run kitchen. I'd be curious which of the seven jobs others find themselves
+building first.</p>
+
+{% endraw %}
