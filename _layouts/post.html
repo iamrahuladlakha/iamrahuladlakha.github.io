@@ -1,0 +1,81 @@
+---
+layout: default
+body_class: post-page
+scripts: [/assets/js/post.js]
+---
+<div class="progress" aria-hidden="true"><span class="progress-bar" data-progress></span></div>
+<article class="post" itemscope itemtype="https://schema.org/BlogPosting">
+  <header class="post-header shell">
+    <a class="back-link" href="{{ '/blog/' | relative_url }}">{% include icon.html name="arrow-left" %} All posts</a>
+    {%- if page.tags.size > 0 %}
+    <ul class="tags post-tags" role="list" aria-label="Tags">
+      {%- for t in page.tags %}<li><a class="tag tag--link" href="{{ '/blog/' | relative_url }}?tag={{ t | url_encode }}">{{ t | escape }}</a></li>{% endfor -%}
+    </ul>
+    {%- endif %}
+    <h1 class="post-title" itemprop="headline">{{ page.title | escape }}</h1>
+    {%- if page.description %}
+    <p class="post-lead" itemprop="description">{{ page.description | escape }}</p>
+    {%- endif %}
+    <div class="post-meta">
+      <img class="post-avatar" src="{{ site.avatar | relative_url }}" alt="" width="40" height="40" loading="lazy">
+      <div class="post-meta-text">
+        <span class="post-author" itemprop="author">{{ site.author.name }}</span>
+        <span class="post-meta-sub">
+          <time datetime="{{ page.date | date_to_xmlschema }}" itemprop="datePublished">{{ page.date | date: '%B %-d, %Y' }}</time>
+          <span aria-hidden="true">·</span>
+          <span>{% include reading-time.html content=content %}</span>
+        </span>
+      </div>
+      <button class="copy-link" type="button" data-copy-link>
+        {% include icon.html name="link" %}<span data-copy-label>Copy link</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="post-grid shell">
+    <aside class="toc" data-toc hidden aria-labelledby="toc-title">
+      <details class="toc-details" open>
+        <summary id="toc-title">On this page</summary>
+        <ol class="toc-list" data-toc-list></ol>
+      </details>
+    </aside>
+    <div class="post-body" itemprop="articleBody" data-post-body>
+{{ content }}
+    </div>
+  </div>
+
+  {%- if page.previous or page.next %}
+  <nav class="post-nav shell" aria-label="More posts">
+    {%- if page.previous %}
+    <a class="post-nav-link post-nav-prev" href="{{ page.previous.url | relative_url }}">
+      <span class="post-nav-label">{% include icon.html name="arrow-left" %} Older</span>
+      <span class="post-nav-title">{{ page.previous.title | escape }}</span>
+    </a>
+    {%- else %}<span></span>{% endif %}
+    {%- if page.next %}
+    <a class="post-nav-link post-nav-next" href="{{ page.next.url | relative_url }}">
+      <span class="post-nav-label">Newer {% include icon.html name="arrow" %}</span>
+      <span class="post-nav-title">{{ page.next.title | escape }}</span>
+    </a>
+    {%- endif %}
+  </nav>
+  {%- endif %}
+</article>
+<div class="toast" role="status" aria-live="polite" data-toast></div>
+{%- if page.math %}
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js" integrity="sha384-7zkQWkzuo3B5mTepMUcHkMB5jZaolc2xDwL6VFqjFALcbeS9Ggm/Yr2r3Dy4lfFg" crossorigin="anonymous"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/contrib/auto-render.min.js" integrity="sha384-43gviWU0YVjaDtb/GhzOouOXtZMP/7XUzwPTstBeZFe/+rCMvRwr4yROQP43s0Xk" crossorigin="anonymous"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    if (typeof renderMathInElement !== "function") return;
+    renderMathInElement(document.querySelector("[data-post-body]"), {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false }
+      ],
+      throwOnError: false
+    });
+  });
+</script>
+{%- endif %}

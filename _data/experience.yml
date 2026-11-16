@@ -1,0 +1,56 @@
+# Experience timeline, newest first. The current role's employer is intentionally not named (org left empty).
+# badge: "Customer-facing" or "Team leadership"
+- title: AI Solution Architect — India Lead
+  org: ""
+  years: 2025–present
+  badge: Customer-facing
+  blurb: >-
+    I embed with enterprise customers to take agentic AI from whiteboard to production: pilots, AI voice agents,
+    and the integrations that make them work alongside legacy systems. I work with CXOs to tie every build to a
+    measurable business outcome and value case, then clear the security reviews and deployment blockers that stop
+    it shipping. I also run hands-on architecture workshops at global customer events.
+
+- title: AGM – ML/AI
+  org: Third Wave Coffee
+  years: 2023–2024
+  badge: Team leadership
+  blurb: >-
+    Headed AI/ML across marketing and supply-chain use cases. Built and deployed a high-concurrency, real-time
+    framework (Python, REST APIs) for customer cohorts and dynamic discounting that plugged into existing
+    systems and lifted retention by 45%.
+
+- title: Lead Data Scientist
+  org: AB InBev
+  years: 2020–2023
+  badge: Team leadership
+  blurb: >-
+    Led data science for logistics, supply chain and marketing. Forecast returnable-bottle flows for reverse
+    logistics ($7.6M in operational value) and architected a global sustainability platform that used anomaly
+    detection and predictive maintenance on brewery power use ($3M saved, 15% lower carbon footprint). Set the
+    ML architecture roadmap and deployment standards and mentored a team of 5+ engineers.
+
+- title: Data Science Consultant
+  org: Adobe
+  years: 2017–2019
+  badge: Customer-facing
+  blurb: >-
+    Worked with enterprise customers of Adobe's digital-marketing products. Productized churn models (~84%
+    accuracy) and NLP-driven prediction engines to flag at-risk high-value accounts early, and built monitoring
+    dashboards tracking adoption of Media and Marketing products.
+
+- title: Data Science Associate Consultant
+  org: AT&T
+  years: 2014–2017
+  badge: Customer-facing
+  blurb: >-
+    Delivered analytics for network-cloud and telecom-retail clients. Built revenue-forecasting models for the
+    retail segment and turned legacy reporting into full-stack data apps (Chart.js, Tableau) for enterprise
+    stakeholders.
+
+- title: Data Analyst
+  org: Tech Mahindra
+  years: 2013–2014
+  badge: Customer-facing
+  blurb: >-
+    Data engineering and analysis for a UK pharmaceutical client's supply chain: built the data pipelines and
+    recurring reports that tracked supply-chain performance.

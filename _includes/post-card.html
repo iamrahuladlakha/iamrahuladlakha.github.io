@@ -1,0 +1,20 @@
+{%- assign p = include.post -%}
+<article class="card{% if include.featured %} card--featured{% endif %}" data-reveal>
+  <div class="card-meta">
+    <time datetime="{{ p.date | date_to_xmlschema }}">{{ p.date | date: '%b %-d, %Y' }}</time>
+    <span aria-hidden="true">·</span>
+    <span>{% include reading-time.html content=p.content %}</span>
+  </div>
+  <h3 class="card-title"><a href="{{ p.url | relative_url }}">{{ p.title | escape }}</a></h3>
+  {%- if include.featured and p.description %}
+  <p class="card-desc">{{ p.description | escape }}</p>
+  {%- endif %}
+  {%- if p.tags.size > 0 %}
+  <ul class="tags" role="list" aria-label="Tags">
+    {%- for t in p.tags limit: 3 %}<li class="tag">{{ t | escape }}</li>{% endfor -%}
+  </ul>
+  {%- endif %}
+  {%- if include.featured %}
+  <span class="card-cta" aria-hidden="true">Read post {% include icon.html name="arrow" %}</span>
+  {%- endif %}
+</article>

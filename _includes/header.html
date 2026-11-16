@@ -1,0 +1,20 @@
+<a class="skip-link" href="#main">Skip to content</a>
+<header class="site-header" data-header>
+  <div class="shell header-inner">
+    <a class="brand" href="{{ '/' | relative_url }}" aria-label="{{ site.title }}, home">
+      <span class="brand-mark" aria-hidden="true">RA</span>
+      <span class="brand-name">{{ site.title }}</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      {%- assign path = page.url -%}
+      <a href="{{ '/' | relative_url }}"{% if path == '/' %} aria-current="page"{% endif %}>Home</a>
+      <a href="{{ '/blog/' | relative_url }}"{% if path contains '/blog/' %} aria-current="page"{% endif %}>Blog</a>
+      <a href="#contact">Contact</a>
+      <button class="theme-toggle" type="button" data-theme-toggle aria-label="Theme: system. Switch to light">
+        <span class="theme-icon" data-icon="system">{% include icon.html name="monitor" %}</span>
+        <span class="theme-icon" data-icon="light">{% include icon.html name="sun" %}</span>
+        <span class="theme-icon" data-icon="dark">{% include icon.html name="moon" %}</span>
+      </button>
+    </nav>
+  </div>
+</header>

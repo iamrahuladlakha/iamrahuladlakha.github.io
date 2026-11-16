@@ -1,0 +1,64 @@
+---
+layout: default
+title: Blog
+description: Rahul Adlakha writes about applied AI — agents, LLM systems and how they reach production.
+permalink: /blog/
+body_class: blog-page
+scripts: [/assets/js/blog.js]
+---
+{%- assign all_tags = site.tags | sort -%}
+<section class="page-head shell">
+  <p class="eyebrow">Blog</p>
+  <h1 class="page-title">Writing on applied AI</h1>
+  <p class="page-lead">Agents, LLM systems and what it takes to get them into production.</p>
+
+  <div class="search" role="search">
+    <label class="sr-only" for="post-search">Search posts</label>
+    <span class="search-icon">{% include icon.html name="search" %}</span>
+    <input class="search-input" id="post-search" type="search" placeholder="Search posts" autocomplete="off" spellcheck="false" aria-describedby="search-hint" data-search>
+    <kbd class="search-kbd" id="search-hint" title="Press / to search"><span class="sr-only">Press </span>/<span class="sr-only"> to focus search</span></kbd>
+  </div>
+
+  {%- if all_tags.size > 0 %}
+  <div class="chips" role="group" aria-label="Filter by tag">
+    <a class="chip" href="{{ '/blog/' | relative_url }}" data-tag-chip="" aria-current="true">All <span class="count">{{ site.posts.size }}</span></a>
+    {%- for t in all_tags %}
+    <a class="chip" href="{{ '/blog/' | relative_url }}?tag={{ t[0] | url_encode }}" data-tag-chip="{{ t[0] | escape }}">{{ t[0] | escape }} <span class="count">{{ t[1].size }}</span></a>
+    {%- endfor %}
+  </div>
+  {%- endif %}
+  <p class="result-count" data-count aria-live="polite">{{ site.posts.size }} {% if site.posts.size == 1 %}post{% else %}posts{% endif %}</p>
+</section>
+
+<section class="shell blog-list">
+  {%- if site.posts.size > 0 %}
+  <ol class="post-list" role="list" data-post-list data-index="{{ '/search.json' | relative_url }}">
+    {%- for post in site.posts %}
+    <li class="post-row" data-url="{{ post.url | relative_url }}" data-tags="{{ post.tags | join: '|' | escape }}" data-reveal>
+      <div class="post-row-date">
+        <time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%b %-d, %Y' }}</time>
+        <span>{% include reading-time.html content=post.content %}</span>
+      </div>
+      <div class="post-row-main">
+        <h2 class="post-row-title"><a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a></h2>
+        {%- if post.description %}<p class="post-row-desc">{{ post.description | escape }}</p>{% endif %}
+        {%- if post.tags.size > 0 %}
+        <ul class="tags" role="list" aria-label="Tags">
+          {%- for t in post.tags %}<li><a class="tag tag--link" href="{{ '/blog/' | relative_url }}?tag={{ t | url_encode }}" data-tag-link="{{ t | escape }}">{{ t | escape }}</a></li>{% endfor -%}
+        </ul>
+        {%- endif %}
+      </div>
+    </li>
+    {%- endfor %}
+  </ol>
+  <div class="empty" data-empty hidden>
+    <p class="empty-title">No posts match</p>
+    <p class="empty-text">Try a different search or <button type="button" class="text-button" data-clear>clear the filters</button>.</p>
+  </div>
+  {%- else %}
+  <div class="empty">
+    <p class="empty-title">First posts coming soon</p>
+    <p class="empty-text">Hands-on write-ups on agents, LLM systems and taking AI to production. <a href="{{ '/feed.xml' | relative_url }}">Subscribe via RSS</a> to get them first.</p>
+  </div>
+  {%- endif %}
+</section>

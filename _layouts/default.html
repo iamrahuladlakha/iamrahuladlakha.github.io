@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+{% include head.html %}
+</head>
+<body class="{{ page.body_class | default: layout.body_class | default: 'page' }}">
+{% include header.html %}
+<main id="main" tabindex="-1">
+{{ content }}
+</main>
+{% include footer.html %}
+<script src="{{ '/assets/js/site.js' | relative_url }}" defer></script>
+{%- assign extra_scripts = page.scripts | default: layout.scripts -%}
+{%- for s in extra_scripts %}
+<script src="{{ s | relative_url }}" defer></script>
+{%- endfor %}
+</body>
+</html>
