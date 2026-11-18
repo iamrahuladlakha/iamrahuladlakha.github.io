@@ -1,7 +1,7 @@
 // Blog comments API: public read/submit (Turnstile + rate limit, pre-moderated) and a bearer-token admin API.
 const POST_RE = /^\/blog\/[a-z0-9-]+\/$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const CTRL_RE = /[\p{Cc}\p{Cf}]/u;
+const CTRL_RE = /(?!\u200D)[\p{Cc}\p{Cf}]/u;  // ZWJ allowed: it joins emoji sequences
 const MAX_BYTES = 16384;
 const RATE_MAX = 3;
 const PENDING_MAX = 200;
