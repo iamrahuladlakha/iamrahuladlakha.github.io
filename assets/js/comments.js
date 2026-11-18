@@ -86,7 +86,7 @@
   function renderTurnstile() {
     if (!window.turnstile) return;
     if (widget !== null) window.turnstile.remove(widget);
-    widget = window.turnstile.render(tsBox, { sitekey: sitekey, theme: theme() });
+    widget = window.turnstile.render(tsBox, { sitekey: sitekey, theme: theme(), action: "comment" });
   }
 
   function loadTurnstile() {
@@ -113,6 +113,11 @@
     403: "The spam check didn't pass. Please try again.",
     429: "You've posted a few comments in a short time. Please wait a few minutes and try again."
   };
+  var known = {  // specific Worker errors worth their own message
+    "That name is reserved": "That name is reserved. Please use a different one.",
+    "Spam check unavailable, try again": "The spam check is unavailable right now. Please try again in a minute.",
+    "Comments are temporarily paused": "New comments are paused for now. Please try again later."
+  };
 
   form.addEventListener("submit", function (e) {
     e.preventDefault();
@@ -133,9 +138,11 @@
           form.reset();
           updateCount();
           say("Thanks! Your comment will appear once it's approved.");
-        } else {
-          say(errors[r.status] || "Something went wrong. Please try again later.", true);
+          return;
         }
+        return r.json().catch(function () { return {}; }).then(function (d) {
+          say(known[d.error] || errors[r.status] || "Something went wrong. Please try again later.", true);
+        });
       })
       .catch(function () { say("Couldn't reach the comment server. Please try again later.", true); })
       .then(function () {

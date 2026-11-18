@@ -17,6 +17,7 @@ test("post is pending, hidden until approved, then visible without private field
   assert.ok(row);
   assert.equal(row.name, "Ada");
   assert.equal(row.email, "ada@example.com");
+  assert.deepEqual(Object.keys(row).sort(), ["body", "created_at", "email", "id", "is_author", "name", "parent_id", "post", "status"]);
 
   assert.equal((await admin(w.base, `/admin/comments/${row.id}/approve`, { method: "POST" })).status, 200);
   const list = await publicList(w.base);
@@ -53,6 +54,12 @@ test("validation errors return 400", async () => {
     { body: "" },
     { body: "x".repeat(2001) },
     { body: "bell\u0007" },
+    { body: "hidden\u200Bspace" },
+    { body: "bidi \u202Eoverride" },
+    { name: "tab\tname" },
+    { name: "zero\u200Bwidth" },
+    { name: "Rahul Adlakha" },
+    { name: "  rahul   ADLAKHA " },
     { email: "not-an-email" },
     { email: "a@b.c" + "x".repeat(120) },
   ];
@@ -61,9 +68,27 @@ test("validation errors return 400", async () => {
     assert.equal(res.status, 400, JSON.stringify(fields));
     assert.ok((await res.json()).error);
   }
-  const bad = await fetch(w.base + "/comments", { method: "POST", headers: { Origin: ORIGIN }, body: "{nope" });
+  const reserved = await postComment(w.base, { name: "Rahul  adlakha" });
+  assert.equal((await reserved.json()).error, "That name is reserved");
+  const bad = await fetch(w.base + "/comments", { method: "POST", headers: { Origin: ORIGIN, "Content-Type": "application/json" }, body: "{nope" });
   assert.equal(bad.status, 400);
+  assert.equal((await postComment(w.base, { body: "col1\tcol2\nnext line" })).status, 201);
   assert.equal((await postComment(w.base, { body: "x".repeat(2000), name: "x".repeat(60) })).status, 201);
+});
+
+test("POST needs a JSON Content-Type and a body of at most 16 KiB", async () => {
+  const send = (headers, body) => fetch(w.base + "/comments", { method: "POST", headers: { Origin: ORIGIN, ...headers }, body, duplex: "half" });
+  const ok = JSON.stringify({ post: "/blog/test-post/", name: "Ada", body: "hi", token: "XXXX.DUMMY.TOKEN.XXXX" });
+  assert.equal((await send({ "Content-Type": "text/plain" }, ok)).status, 415);
+  assert.equal((await send({}, ok)).status, 415);
+  const big = JSON.stringify({ post: "/blog/test-post/", name: "Ada", body: "x".repeat(17000) });
+  assert.equal((await send({ "Content-Type": "application/json" }, big)).status, 413);
+  const stream = new ReadableStream({  // no Content-Length: chunked upload must still be capped
+    start(c) { for (let i = 0; i < 20; i++) c.enqueue(new TextEncoder().encode("x".repeat(1024))); c.close(); },
+  });
+  const chunked = await send({ "Content-Type": "application/json" }, stream);
+  assert.equal(chunked.status, 413);
+  assert.ok((await chunked.json()).error);
 });
 
 test("missing Turnstile token is rejected", async () => {
@@ -77,6 +102,13 @@ test("rate limit: 4th comment from one IP in 10 minutes gets 429", async () => {
   assert.equal(res.status, 429);
   assert.ok((await res.json()).error);
   assert.equal((await postComment(w.base, { body: "other ip" })).status, 201);
+});
+
+test("IPv6 rate limit covers the whole /64", async () => {
+  const same = ["2001:db8:77:1::1", "2001:0DB8:0077:0001:aaaa::5", "2001:db8:77:1:ffff:ffff:ffff:ffff"];
+  for (const ip of same) assert.equal((await postComment(w.base, {}, { ip })).status, 201, ip);
+  assert.equal((await postComment(w.base, {}, { ip: "2001:db8:77:1:1:2:3:4" })).status, 429);
+  assert.equal((await postComment(w.base, {}, { ip: "2001:db8:77:2::1" })).status, 201);
 });
 
 test("admin routes require the bearer token", async () => {

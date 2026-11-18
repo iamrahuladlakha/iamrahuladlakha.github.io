@@ -1,6 +1,6 @@
 // Starts `wrangler dev --local` on a fresh temp D1 with the schema applied; returns { base, stop }.
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,12 +10,18 @@ const wrangler = join(root, "node_modules", ".bin", "wrangler");
 export const ADMIN = "test-admin-token";
 export const ORIGIN = "http://localhost:4000";
 
-export async function startWorker({ port, turnstileSecret = "1x0000000000000000000000000000000AA" }) {
+export const ORIGINS = "https://iamrahuladlakha.github.io,http://localhost:4000,http://127.0.0.1:4000";
+
+// vars: extra/overriding Worker vars; seed: SQL run on the fresh DB before start.
+export async function startWorker({ port, turnstileSecret = "1x0000000000000000000000000000000AA", vars = {}, seed }) {
   const dir = mkdtempSync(join(tmpdir(), "blog-comments-"));
-  execFileSync(wrangler, ["d1", "execute", "blog-comments", "--local", "--persist-to", dir, "--file", "schema.sql"],
+  const d1 = (args) => execFileSync(wrangler, ["d1", "execute", "blog-comments", "--local", "--persist-to", dir, ...args],
     { cwd: root, stdio: "ignore" });
+  d1(["--file", "schema.sql"]);
+  if (seed) { const f = join(dir, "seed.sql"); writeFileSync(f, seed); d1(["--file", f]); }
+  const all = { TURNSTILE_SECRET: turnstileSecret, ADMIN_TOKEN: ADMIN, IP_SALT: "test-salt-0123456789", ALLOWED_ORIGINS: ORIGINS, ...vars };
   const proc = spawn(wrangler, ["dev", "--local", "--port", String(port), "--persist-to", dir, "--show-interactive-dev-session=false",
-    "--var", `TURNSTILE_SECRET:${turnstileSecret}`, "--var", `ADMIN_TOKEN:${ADMIN}`, "--var", "IP_SALT:test-salt"],
+    ...Object.entries(all).flatMap(([k, v]) => ["--var", `${k}:${v}`])],
     { cwd: root, stdio: ["ignore", "pipe", "pipe"], detached: true });
   let log = "";
   proc.stdout.on("data", (d) => (log += d));
