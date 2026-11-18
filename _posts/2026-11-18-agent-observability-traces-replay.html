@@ -1,0 +1,219 @@
+---
+layout: post
+title: "Agent Observability: Traces, Replay and the Refund Nobody Asked For"
+description: "Why agents need one connected trace per run, how replaying real traffic gates guardrail changes, and what tracing costs in privacy, volume and trust."
+tags: ["agents", "observability", "tracing", "guardrails"]
+source_id: "agent-observability"
+math: false
+---
+{% raw %}
+<p>When a normal service misbehaves, the logs usually tell you what went wrong, because the code takes the same path
+every time and the logs mostly confirm it. An agent doesn't work like that. It picks its path as it goes: it reads
+something, decides to call a tool, reads the result, and decides again. So if you want to know why an agent did
+something, you need a record of each decision and what it was looking at when it made it. That record is what I mean
+by agent observability, and the more I read about agents in production, the more I think it's the piece teams set up
+last when it should come first.</p>
+
+<p>In this post I'll go through what an agent trace actually is, how replaying recorded traffic turns it into a
+release gate, and what it costs to run in production.</p>
+
+<h2>The problem: three logs, no story</h2>
+
+<p>Here's a situation I keep coming back to. A support agent issues a refund the customer never asked for. You go
+looking for the cause. The refund tool's log shows the call went out. The model provider's log shows 30 prompts in
+that minute, from lots of different users. The guardrail's log shows 200 "allow" verdicts in the same window. Each
+log is accurate. None of them can answer the only question you care about: what did the agent read just before it
+decided to refund?</p>
+
+<p>It's like reconstructing a car accident from three notebooks, one kept by each driver and one by the traffic
+light, with clocks that don't agree. You have plenty of data and still no sequence of events.</p>
+
+<p>The second problem shows up when you try to fix it. Say a new prompt-injection trick gets published on Monday and
+you write a guardrail to stop it. Will that guardrail also block some of the 50,000 normal actions your agent took
+last week? A hand-written test set of 200 examples can't tell you. It covers the cases someone thought of, and real
+users and real attackers keep producing cases nobody wrote down. A stricter check that quietly breaks legitimate
+work is a real outcome, not a hypothetical one.</p>
+
+<h2>How it works: a trace is a tree of spans</h2>
+
+<p>The fix for the first problem is to give the whole run one trace ID and record every step inside it as a
+<strong>span</strong>: one timed step with its inputs, its outputs, and a pointer to the step it happened inside.
+Because each span knows its parent, the spans form a tree. A run contains model calls, a model call proposes a tool
+call, and the tool call gets checked by a guardrail before it runs.</p>
+
+<p>Each span carries a small, fixed set of fields: an id, its parent, its kind (model call, tool call, guardrail
+decision, retrieval, human approval), when it started, how long it took, and what went in and came out. What's worth
+recording depends on the kind:</p>
+
+<table>
+  <tr><th>Span kind</th><th>What I'd record</th></tr>
+  <tr><td>model call</td><td>model and version, token counts, cost, the decision it made</td></tr>
+  <tr><td>tool call</td><td>tool name, arguments, result status, the system it touched</td></tr>
+  <tr><td>guardrail decision</td><td>which guardrail, its verdict, its score, the policy version</td></tr>
+</table>
+
+<p>That last column has the field I'd fight hardest for: the policy version on every verdict. Without it you can see
+that a check said "allow", but not which rules it was applying at the time.</p>
+
+<p>In practice you rarely invent this format yourself. OpenTelemetry already fixes the span format, carries the trace
+ID between services, and exports spans to whatever backend you choose. Its generative AI conventions add typed spans
+for model and tool steps. LLM-focused backends such as Langfuse sit on top of it and add sessions, cost views and
+traces you can replay.</p>
+
+<h2>A worked example: the parcel question and the refund</h2>
+
+<p>Take a food-delivery support agent. A customer asks "where's my order?" and gets a reply 1,825 ms later. The trace
+has five spans:</p>
+
+<svg viewBox="0 0 440 170" width="100%" style="max-width:600px" role="img" aria-label="One run drawn as nested timed bars: a prompt guardrail check, a model call, a guardrail check on the tool call, the tracking tool and the model's reply, adding up to 1,825 ms">
+  <g font-size="10" style="fill: var(--text)">
+    <rect x="10" y="10" width="420" height="22" rx="4" style="fill: var(--surface); stroke: var(--border)"/>
+    <text x="16" y="25">run: "where's my order?" (one trace ID, 1,825 ms)</text>
+    <rect x="10" y="40" width="8" height="18" rx="2" style="fill: var(--bg); stroke: var(--accent)" stroke-width="2"/>
+    <text x="24" y="53" style="fill: var(--accent)">guardrail: prompt, allow (35 ms)</text>
+    <rect x="18" y="64" width="207" height="18" rx="2" style="fill: var(--surface); stroke: var(--text)"/>
+    <text x="24" y="77">model: decide, propose tool call (900 ms)</text>
+    <rect x="225" y="88" width="9" height="18" rx="2" style="fill: var(--bg); stroke: var(--accent)" stroke-width="2"/>
+    <text x="240" y="101" style="fill: var(--accent)">guardrail: tool call, allow (40 ms)</text>
+    <rect x="234" y="112" width="58" height="18" rx="2" style="fill: var(--surface); stroke: var(--text)"/>
+    <text x="298" y="125">tool: track_order (250 ms)</text>
+    <rect x="292" y="136" width="138" height="18" rx="2" style="fill: var(--surface); stroke: var(--text)"/>
+    <text x="298" y="149">model: reply (600 ms)</text>
+  </g>
+  <g font-size="9" style="fill: var(--muted)">
+    <text x="10" y="166">bar length is proportional to time</text>
+  </g>
+</svg>
+
+<p>35 + 900 + 40 + 250 + 600 = 1,825 ms. The first model call is 900 of those, about 49%. The two guardrail checks
+together are 75 ms, about 4%. That's the first thing a trace gives you for free: an honest picture of where the
+time goes. If someone tells me guardrails are what make the agent slow, this is the view I'd want in front of us.</p>
+
+<p>Now the interesting run. The next day, a different conversation ends with a $40 refund. With a trace, the
+investigation takes minutes. The tracking tool's result included a line from the restaurant's free-text notes field
+saying the customer was owed a refund and it should be issued now. The very next model span proposed
+<code>issue_refund</code>. The guardrail span below it says "allow", with the policy version that allowed it.</p>
+
+<p>So the team knows exactly what broke. Text that came back from a tool was treated as an instruction, and the
+guardrail never compared the proposed action with what the customer actually asked for. That's a precise fix, not
+a vague "make the prompt more careful".</p>
+
+<p>Then comes the part I like best. They write a stricter check and replay last week's 50,000 recorded actions
+through it, offline. It would have blocked this refund and 12 others like it. It would also have blocked 30
+legitimate refunds that customers had asked for. Those 30 false blocks go back to the team to tune before the check
+goes live. Without replay, those 30 customers would have found the problem for them.</p>
+
+<h2>Replay turns traces into a release gate</h2>
+
+<p>Once you have traces, the loop that follows almost designs itself:</p>
+
+<svg viewBox="0 0 440 180" width="100%" style="max-width:600px" role="img" aria-label="A loop: record production traces, add new attacks from red teaming, replay both through a candidate guardrail, measure false blocks and false allows, ship if the numbers hold, then record again">
+  <defs><marker id="ao-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="11" text-anchor="middle" style="fill: var(--text)">
+    <rect x="10" y="20" width="110" height="44" rx="8" style="fill: var(--surface); stroke: var(--border)"/>
+    <text x="65" y="39">record</text><text x="65" y="53" font-size="9" style="fill: var(--muted)">production traces</text>
+    <rect x="165" y="20" width="110" height="44" rx="8" style="fill: var(--surface); stroke: var(--accent)" stroke-width="2"/>
+    <text x="220" y="39" style="fill: var(--accent)">replay</text><text x="220" y="53" font-size="9" style="fill: var(--muted)">through the candidate</text>
+    <rect x="320" y="20" width="110" height="44" rx="8" style="fill: var(--surface); stroke: var(--text)"/>
+    <text x="375" y="39">measure</text><text x="375" y="53" font-size="9" style="fill: var(--muted)">false blocks, false allows</text>
+    <rect x="165" y="116" width="110" height="44" rx="8" style="fill: var(--code-bg); stroke: var(--border)" stroke-dasharray="4 3"/>
+    <text x="220" y="135">new attacks</text><text x="220" y="149" font-size="9" style="fill: var(--muted)">red teaming</text>
+    <rect x="320" y="116" width="110" height="44" rx="8" style="fill: var(--surface); stroke: var(--text)"/>
+    <text x="375" y="135">ship or tune</text><text x="375" y="149" font-size="9" style="fill: var(--muted)">if the numbers hold</text>
+  </g>
+  <g fill="none" style="stroke: var(--muted)">
+    <path d="M120,42 L163,42" marker-end="url(#ao-arrow)"/>
+    <path d="M275,42 L318,42" marker-end="url(#ao-arrow)"/>
+    <path d="M220,116 L220,66" marker-end="url(#ao-arrow)"/>
+    <path d="M375,64 L375,114" marker-end="url(#ao-arrow)"/>
+    <path d="M320,150 L65,150 L65,66" marker-end="url(#ao-arrow)"/>
+  </g>
+</svg>
+
+<p>Record production runs. Bring in new attacks from red teaming and from a running list of the ways each agent
+could be attacked. Replay the normal traffic and the attacks through the candidate guardrail or policy. Count the
+false blocks on the normal traffic and the false allows on the attacks. Ship if the numbers hold, feed what you
+learned back into how risky you consider each agent, and go round again.</p>
+
+<p>One write-up I came across on securing agents in production treats this as its own layer, continuous assurance,
+sitting on top of the guardrails and the policy engine. I agree with the framing. The guardrails can't be tuned
+without the trace, and the policy engine's verdicts can't be audited without it either. To me, replay is to prompts,
+guardrails and policies what a test suite is to code, and it should block a release the same way.</p>
+
+<h2>What a trace doesn't tell you</h2>
+
+<p>I recently read a survey on agent provenance, <a href="https://arxiv.org/abs/2606.04990">From Agent Traces to
+Trust</a>, and it sharpened something I'd only half noticed. Logs and traces tell you what happened, in order and
+nested by step. They don't tell you what each output depended on. Which retrieved passage does the answer actually
+rest on? Did that tool result change the plan, or was it read and ignored?</p>
+
+<p>The point from it I'd pass on to any team is that logging at a finer grain doesn't close the gap. Step-level
+traces already tell you which artifacts each step used. To know that an input <em>changed</em> the outcome, you
+have to replay the run with that input removed. To know a passage <em>supports</em> a claim, someone has to read
+both. Token-level logging gives you neither. So the money is better spent on replay hooks than on more verbose logs.
+The same survey notes that none of the observability systems it reviewed describe protection against tampering.
+That's fine for debugging, but if an auditor or another company has to rely on your traces, you need something
+stronger.</p>
+
+<p>The other paper that changed how I think about this is <a href="https://arxiv.org/abs/2610.08364">Transect</a>,
+which comes at traces from evaluation rather than debugging. Production observability asks what went wrong in one
+request. Evaluating a frontier agent asks what you can reliably infer about the agent from a run that is hundreds of
+pages and millions of tokens long. They call that range the observability envelope. They widen it by running
+automated scanners over the transcript and lining their outputs up on one turn-by-turn timeline, with each mark
+linked back to the turns it came from. It's the same raw record. The difference is the questions you ask of it.</p>
+
+<h2>Architecture and production implications</h2>
+
+<p><strong>The trace is a store of sensitive data.</strong> Full prompts and replies are the most useful thing to
+keep and the most dangerous. They hold customers' messages, personal details and sometimes credentials. The rules I'd
+follow: always capture the metadata you need to troubleshoot and audit (who, which agent, which tools, which
+verdicts, timings). Keep prompt and reply content only when you need it, and redact it before storing, so a card
+number becomes <code>[CARD]</code> on the way in, not on the way out. Restrict who can read traces by how sensitive
+they are, and set a retention period after which they're deleted. OpenTelemetry's GenAI conventions help here
+because content capture is off by default. You switch it on deliberately, and in production you can send the content
+to separate access-controlled storage and keep only a reference on the span. Every one of these controls removes
+detail an investigation might want later, and I think that's a trade you make on purpose.</p>
+
+<p><strong>Volume and cost grow with every step.</strong> Each step of each run produces data, and agents take a lot
+of steps. At high traffic, teams sample: keep a share of normal runs and every flagged one, and keep metadata longer
+than content, so the long-term store holds the who, what and when, and the full text only for as long as it's
+needed.</p>
+
+<p><strong>Replay shows you the past.</strong> Replayed traffic contains last month's users and last month's
+attacks. It's the best test of a change you have. It doesn't guarantee anything about next month, so keep the red
+teaming going alongside it.</p>
+
+<p><strong>What I'd do from day one.</strong> One trace ID carried end to end, across the model, every tool and every
+guardrail, including anything that crosses a service boundary. The policy version on every verdict. Redaction at
+write time. Replay as a release step for prompts, guardrails and policies. And I'd watch behaviour, not just errors,
+because a run that finishes without an exception can still be a run where the agent did something it shouldn't.</p>
+
+<h2>Takeaways</h2>
+
+<ul>
+  <li>An agent chooses its path at run time, so its logs have to record decisions and what they were based on, not
+    just outcomes.</li>
+  <li>One trace ID and a tree of spans turn three unrelated logs into a single story you can read top to bottom.</li>
+  <li>Log the policy version with every guardrail verdict. It's what makes a decision explainable a week later.</li>
+  <li>Replay recorded traffic through every candidate guardrail or policy before it ships, and count the false blocks
+    as well as the catches.</li>
+  <li>Traces show what happened, not what depended on what. Spend on replay hooks rather than finer logging.</li>
+  <li>Treat the trace store like any other sensitive database: redact on write, restrict access, delete on a
+    schedule.</li>
+</ul>
+
+<p>The picture I keep in my head is a parcel's tracking history. Collected, sorted at the depot, loaded on van 12,
+delivered at 14:02, photo of the doorstep. Every scan has a time and a place under one tracking number, so "where did
+it go wrong?" always has an answer. I'm curious how far other teams have got with this: are you replaying production
+traffic before you ship a prompt or guardrail change, or is it still on the list?</p>
+
+<h2>References</h2>
+
+<ul>
+  <li>Wang et al. (2026). <a href="https://arxiv.org/abs/2606.04990">From Agent Traces to Trust: A Survey of Evidence
+    Tracing and Execution Provenance in LLM Agents</a>. arXiv:2606.04990.</li>
+  <li>Pilditch et al. (2026). <a href="https://arxiv.org/abs/2610.08364">Transect: Retaining Observability for
+    Long-Horizon LLM Agent Evaluations</a>. arXiv:2610.08364.</li>
+</ul>
+
+{% endraw %}
