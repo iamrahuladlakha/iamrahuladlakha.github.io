@@ -58,7 +58,7 @@ async function publicRoute(request, env, url) {
     const { results } = await env.DB.prepare(
       `SELECT ${PUBLIC_COLS} FROM comments WHERE post = ? AND status = 'approved' ORDER BY created_at, id`
     ).bind(post).all();
-    return reply(results, 200, { "Cache-Control": "public, max-age=60" });
+    return reply(results, 200, { "Cache-Control": "public, max-age=15" });
   }
   if (request.method === "POST") return submit(request, env, reply);
   return reply({ error: "Method not allowed" }, 405);
@@ -165,6 +165,7 @@ async function adminRoute(request, env, url) {
     if (body.error) return json({ error: `Reply ${body.error}` }, 400);
     const parent = await env.DB.prepare("SELECT post FROM comments WHERE id = ?").bind(id).first();
     if (!parent) return json({ error: "Not found" }, 404);
+    await env.DB.prepare("UPDATE comments SET status = 'approved' WHERE id = ?").bind(id).run();  // a public reply needs a public parent
     const r = await env.DB.prepare(
       "INSERT INTO comments (post, name, email, body, status, is_author, parent_id, ip_hash, created_at) VALUES (?, ?, NULL, ?, 'approved', 1, ?, NULL, ?)"
     ).bind(parent.post, AUTHOR_NAME, body.value, id, new Date().toISOString()).run();

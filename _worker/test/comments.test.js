@@ -27,7 +27,7 @@ test("post is pending, hidden until approved, then visible without private field
 
 test("public GET sets cache header and rejects bad post path", async () => {
   const ok = await fetch(`${w.base}/comments?post=/blog/test-post/`);
-  assert.equal(ok.headers.get("Cache-Control"), "public, max-age=60");
+  assert.equal(ok.headers.get("Cache-Control"), "public, max-age=15");
   const bad = await fetch(`${w.base}/comments?post=/etc/passwd`);
   assert.equal(bad.status, 400);
   assert.ok((await bad.json()).error);
@@ -85,6 +85,16 @@ test("admin routes require the bearer token", async () => {
   assert.equal((await admin(w.base, "/admin/comments/1/approve", { method: "POST", token: null })).status, 401);
   assert.equal((await admin(w.base, "/admin/comments/1", { method: "DELETE", token: "x" })).status, 401);
   assert.equal((await admin(w.base, "/admin/comments?status=bogus")).status, 400);
+});
+
+test("replying to a pending comment approves the parent", async () => {
+  await postComment(w.base, { post: "/blog/reply-pending/", body: "still pending" });
+  const [q] = await (await admin(w.base, "/admin/comments?status=pending")).json().then((r) => r.filter((c) => c.post === "/blog/reply-pending/"));
+  assert.equal((await publicList(w.base, "/blog/reply-pending/")).length, 0);
+  assert.equal((await admin(w.base, `/admin/comments/${q.id}/reply`, { method: "POST", body: { body: "answer" } })).status, 201);
+  const list = await publicList(w.base, "/blog/reply-pending/");
+  assert.equal(list.length, 2);
+  assert.ok(list.some((c) => c.id === q.id));
 });
 
 test("author reply is approved, badged, threaded; delete removes it", async () => {
