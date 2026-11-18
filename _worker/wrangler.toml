@@ -1,0 +1,12 @@
+name = "blog-comments"
+main = "src/index.js"
+compatibility_date = "2025-11-01"
+
+[vars]
+ALLOWED_ORIGINS = "https://iamrahuladlakha.github.io,http://localhost:4000,http://127.0.0.1:4000"
+
+# Secrets (wrangler secret put): TURNSTILE_SECRET, ADMIN_TOKEN, IP_SALT. Local dev reads them from .dev.vars.
+[[d1_databases]]
+binding = "DB"
+database_name = "blog-comments"
+database_id = "REPLACE_AFTER_CREATE"
