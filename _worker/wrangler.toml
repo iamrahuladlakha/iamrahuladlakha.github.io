@@ -10,4 +10,4 @@ ALLOWED_ORIGINS = "https://iamrahuladlakha.github.io"
 [[d1_databases]]
 binding = "DB"
 database_name = "blog-comments"
-database_id = "REPLACE_AFTER_CREATE"
+database_id = "11eda8fc-15e7-42e3-8acc-1184ea2731b8"
