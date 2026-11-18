@@ -44,6 +44,10 @@ scripts: [/assets/js/post.js]
     </div>
   </div>
 
+  {%- if site.comments.api %}
+  {% include comments.html %}
+  {%- endif %}
+
   {%- if page.previous or page.next %}
   <nav class="post-nav shell" aria-label="More posts">
     {%- if page.previous %}

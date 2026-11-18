@@ -839,6 +839,60 @@ html:not(.js) .progress { display: none; }
 .toast:empty { display: none; }
 .toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
 
+/* ---------- Comments ---------- */
+.comments { max-width: calc(var(--prose) + 2 * var(--gutter)); padding-top: 3.5rem; }
+@media (min-width: 1100px) {
+  .has-toc .comments { max-width: calc(var(--prose) + 16rem + 4rem + 2 * var(--gutter)); padding-right: calc(16rem + 4rem + var(--gutter)); }
+}
+.comments-title { font-size: 1.6rem; font-weight: 750; letter-spacing: -0.025em; padding-top: 2.5rem; border-top: 1px solid var(--border); }
+.comments-count { color: var(--faint); font-weight: 600; font-variant-numeric: tabular-nums; }
+.comments-status, .comments-note { margin-top: 1rem; color: var(--muted); font-size: 0.95rem; }
+.comments-list, .comment-replies { list-style: none; margin: 0; padding: 0; }
+.comments-list { margin-top: 1.25rem; display: grid; gap: 0.85rem; }
+.comment {
+  padding: 1rem 1.15rem; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-elev); min-width: 0;
+}
+.comment-replies { margin-top: 0.9rem; display: grid; gap: 0.75rem; padding-left: 0.9rem; border-left: 2px solid var(--border); }
+.comment-replies .comment { background: var(--surface); }
+.comment--author { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.comment-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.6rem; }
+.comment-name { font-weight: 650; color: var(--text); overflow-wrap: anywhere; }
+.comment-badge {
+  padding: 0.1rem 0.5rem; border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-soft-text);
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+}
+.comment-date { font-size: 0.84rem; color: var(--faint); }
+.comment-body { margin-top: 0.5rem; color: var(--text-soft); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+
+.comment-form {
+  margin-top: 1.75rem; padding: 1.25rem; display: grid; gap: 1rem;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.comment-form-title { font-size: 1.1rem; font-weight: 700; }
+.comment-fields { display: grid; gap: 1rem; }
+@media (min-width: 640px) { .comment-fields { grid-template-columns: 1fr 1fr; } }
+.field { display: grid; gap: 0.35rem; min-width: 0; }
+.field label { font-size: 0.9rem; font-weight: 600; color: var(--text); }
+.field-hint { font-weight: 500; color: var(--faint); }
+.field input, .field textarea {
+  width: 100%; padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--bg-elev); color: var(--text); font: inherit; font-size: 1rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.field textarea { resize: vertical; min-height: 7.5rem; line-height: 1.55; }
+.field input:focus, .field textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.field-count { justify-self: end; font-size: 0.8rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+.comment-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.comment-turnstile { min-height: 65px; max-width: 100%; overflow: hidden; }
+.comment-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem 1rem; }
+.btn-primary:disabled { opacity: 0.6; cursor: progress; transform: none; }
+.comment-msg { font-size: 0.92rem; color: var(--accent-soft-text); font-weight: 550; }
+.comment-msg.is-error { color: var(--amber-text); }
+.comments-privacy { font-size: 0.84rem; color: var(--muted); }
+
 /* ---------- 404 ---------- */
 .notfound { padding-bottom: clamp(4rem, 10vw, 7rem); }
 
@@ -888,6 +942,6 @@ html:not(.js) .progress { display: none; }
 }
 
 @media print {
-  .site-header, .site-footer, .progress, .toc, .post-nav, .copy-link, .toast { display: none !important; }
+  .site-header, .site-footer, .progress, .toc, .post-nav, .copy-link, .toast, .comment-form { display: none !important; }
   body { background: #fff; color: #000; }
 }

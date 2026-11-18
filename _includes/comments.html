@@ -1,0 +1,37 @@
+<section class="comments shell" id="comments" aria-labelledby="comments-title" data-comments
+  data-api="{{ site.comments.api | escape }}" data-sitekey="{{ site.comments.turnstile_sitekey | escape }}" data-post="{{ page.url | escape }}">
+  <h2 class="comments-title" id="comments-title">Comments <span class="comments-count" data-comments-count></span></h2>
+  <noscript><p class="comments-note">Comments need JavaScript to load and post.</p></noscript>
+  <p class="comments-status js-only" data-comments-status role="status" aria-live="polite">Comments load as you scroll here.</p>
+  <ol class="comments-list" data-comments-list role="list" hidden></ol>
+
+  <form class="comment-form js-only" data-comment-form novalidate>
+    <h3 class="comment-form-title">Leave a comment</h3>
+    <div class="comment-fields">
+      <div class="field">
+        <label for="c-name">Name</label>
+        <input id="c-name" name="name" type="text" required maxlength="60" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="c-email">Email <span class="field-hint">optional, never shown</span></label>
+        <input id="c-email" name="email" type="email" maxlength="120" autocomplete="email">
+      </div>
+    </div>
+    <div class="field">
+      <label for="c-body">Comment</label>
+      <textarea id="c-body" name="body" required maxlength="2000" rows="5" aria-describedby="c-count"></textarea>
+      <span class="field-count" id="c-count" data-comment-count aria-live="polite">0/2000</span>
+    </div>
+    <div class="comment-hp" aria-hidden="true">
+      <label for="c-website">Website</label>
+      <input id="c-website" name="website" type="text" tabindex="-1" autocomplete="off">
+    </div>
+    <div class="comment-turnstile" data-turnstile></div>
+    <div class="comment-actions">
+      <button class="btn btn-primary" type="submit" data-comment-submit>Post comment</button>
+      <p class="comment-msg" data-comment-msg role="status" aria-live="polite"></p>
+    </div>
+    <p class="comments-privacy">No account needed. Comments are reviewed before they appear. No cookies or tracking.</p>
+  </form>
+</section>
+<script src="{{ '/assets/js/comments.js' | relative_url }}" defer></script>
