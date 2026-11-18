@@ -44,7 +44,7 @@ scripts: [/assets/js/post.js]
     </div>
   </div>
 
-  {%- if site.comments.api %}
+  {%- if site.comments.api and site.comments.api.size > 0 %}
   {% include comments.html %}
   {%- endif %}
 
