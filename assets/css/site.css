@@ -945,3 +945,14 @@ html:not(.js) .progress { display: none; }
   .site-header, .site-footer, .progress, .toc, .post-nav, .copy-link, .toast, .comment-form { display: none !important; }
   body { background: #fff; color: #000; }
 }
+
+/* RSS subscribe page */
+.rss-page { padding-bottom: 4rem; }
+.rss-page > * { max-width: 44rem; }
+.rss-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 1.2rem 1.3rem; margin: 0 0 2.5rem; }
+.rss-box p { margin: 0 0 .75rem; }
+.rss-row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-bottom: .9rem; }
+.rss-url { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: .6rem .8rem; font-size: .9rem; }
+.rss-hint { color: var(--muted); font-size: .9rem; margin: 0 !important; }
+.rss-recent { font-size: 1.15rem; margin: 0 0 1rem; }
+.rss-page .muted { color: var(--muted); margin: .25rem 0 0; }

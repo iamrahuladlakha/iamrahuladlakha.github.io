@@ -7,7 +7,7 @@ social: { name: Rahul Adlakha, links: [https://www.linkedin.com/in/rahuladlakha/
 avatar: /images/avatar.jpg
 permalink: /blog/:title/
 plugins: [jekyll-seo-tag, jekyll-sitemap, jekyll-feed]
-feed: { path: feed.xml, xsl: true }
+feed: { path: feed.xml }
 exclude: [README.md, Gemfile, Gemfile.lock, node_modules, vendor]
 timezone: Asia/Kolkata
 comments: { api: "https://blog-comments.blog-comments.workers.dev", turnstile_sitekey: "0x4AAAAAAGHbfnVg6HM3Xr02" }  # empty api hides comments

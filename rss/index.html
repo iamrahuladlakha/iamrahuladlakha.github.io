@@ -1,0 +1,44 @@
+---
+layout: default
+title: Subscribe via RSS
+description: Follow Rahul Adlakha's writing on applied AI in any feed reader. No sign-up, no email.
+permalink: /rss/
+---
+{%- assign feed_url = '/feed.xml' | absolute_url -%}
+<section class="page-head shell">
+  <p class="eyebrow">RSS</p>
+  <h1 class="page-title">Subscribe via RSS</h1>
+  <p class="page-lead">Get new posts in your feed reader the moment they're published. No sign-up, no email, no tracking.</p>
+</section>
+
+<section class="shell rss-page">
+  <div class="rss-box">
+    <p><strong>Copy this link into your feed reader</strong> (Feedly, Inoreader, NetNewsWire, Reeder or any other).</p>
+    <div class="rss-row">
+      <code class="rss-url" id="feed-url">{{ feed_url }}</code>
+      <button type="button" class="btn btn-primary" id="copy-feed">Copy link</button>
+    </div>
+    <p class="rss-hint">New to RSS? It's a free, open way to follow sites: a reader app collects new posts from every site you follow into one place.</p>
+  </div>
+
+  {%- if site.posts.size > 0 %}
+  <h2 class="rss-recent">Recent posts</h2>
+  <ol class="post-list" role="list">
+    {%- for post in site.posts limit: 10 %}
+    <li class="post-row">
+      <div class="post-row-date"><time datetime="{{ post.date | date_to_xmlschema }}">{{ post.date | date: '%b %-d, %Y' }}</time></div>
+      <div><a href="{{ post.url | relative_url }}"><strong>{{ post.title | escape }}</strong></a>
+        <p class="muted">{{ post.description | escape }}</p></div>
+    </li>
+    {%- endfor %}
+  </ol>
+  {%- endif %}
+</section>
+
+<script>
+  document.getElementById('copy-feed').addEventListener('click', function () {
+    var b = this, url = document.getElementById('feed-url').textContent;
+    var done = function () { b.textContent = 'Copied ✓'; setTimeout(function () { b.textContent = 'Copy link'; }, 2000); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).then(done, function () {}); }
+  });
+</script>
