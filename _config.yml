@@ -10,7 +10,7 @@ plugins: [jekyll-seo-tag, jekyll-sitemap, jekyll-feed]
 feed: { path: feed.xml }
 exclude: [README.md, Gemfile, Gemfile.lock, node_modules, vendor]
 timezone: Asia/Kolkata
-comments: { api: "", turnstile_sitekey: "0x4AAAAAAGHbfnVg6HM3Xr02" }  # empty api hides comments until the Worker is deployed
+comments: { api: "https://blog-comments.blog-comments.workers.dev", turnstile_sitekey: "0x4AAAAAAGHbfnVg6HM3Xr02" }  # empty api hides comments
 future: true
 defaults:
   - scope: { path: "" }
