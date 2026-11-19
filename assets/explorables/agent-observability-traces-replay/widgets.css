@@ -1,0 +1,56 @@
+/* Widgets for "Agent Observability". Shared pieces live in assets/css/xp.css. */
+.ox-mut { color: var(--muted); font-size: 0.82rem; }
+.ox-view { display: grid; gap: 0.35rem; min-width: 0; }
+.ox-run { font-size: 0.85rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+.ox-run b { color: var(--accent); }
+.ox-span { font: inherit; font-size: 0.8rem; text-align: left; cursor: pointer; color: var(--text); background: none; border: 0; padding: 0; }
+.ox-view > .ox-span { display: grid; gap: 0.2rem; width: 100%; padding: 0.2rem 0.3rem; border-radius: 6px; }
+.ox-view > .ox-span.is-on { background: var(--accent-soft); }
+.ox-track { display: block; height: 0.9rem; }
+.ox-track i { display: block; height: 100%; min-width: 4px; box-sizing: border-box; border-radius: 3px; border: 1.5px solid var(--text); background: var(--surface); }
+.ox-g .ox-track i { border: 2px solid var(--accent); background: var(--bg); }
+.ox-g .ox-lab { color: var(--accent); }
+.ox-t .ox-track i { border-color: var(--xp-warn); background: var(--xp-warn-soft); }
+.ox-lab b { color: var(--muted); font-weight: 600; margin-left: 0.2rem; }
+.ox-sum b { color: var(--accent); }
+.ox-det { display: grid; gap: 0.3rem; }
+
+.ox-logs { display: grid; gap: 0.6rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ox-log { display: grid; gap: 0.35rem; align-content: start; padding: 0.6rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.ox-log-t { font-weight: 650; font-size: 0.84rem; }
+.ox-log .ox-span { display: grid; gap: 0.1rem; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.ox-log .ox-span.is-on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ox-log .ox-span b { color: var(--muted); font-weight: 600; }
+.ox-logs--sm .ox-log p:last-child { font-size: 0.82rem; color: var(--text-soft); }
+
+.ox-tree { display: grid; gap: 0.25rem; }
+.ox-node { font-size: 0.82rem; padding: 0.3rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); overflow-wrap: anywhere; transition: opacity 0.2s; }
+.ox-node b { font-family: var(--font-mono); font-size: 0.78rem; color: var(--muted); margin-right: 0.3rem; }
+.ox-d1 { margin-left: 1rem; } .ox-d2 { margin-left: 2rem; }
+.ox-node.is-on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ox-node.is-dim { opacity: 0.45; }
+.ox-node.is-bad { border-color: var(--xp-bad); background: var(--xp-bad-soft); }
+
+.ox-stages { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.ox-stage { font-size: 0.8rem; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--muted); background: var(--bg); }
+.ox-stage.is-past { color: var(--text-soft); }
+.ox-stage.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-soft-text); font-weight: 650; }
+.ox-stage + .ox-stage::before { content: "→ "; color: var(--muted); }
+.ox-cnt { font-variant-numeric: tabular-nums; }
+.ox-res { display: grid; gap: 0.7rem; }
+.ox-res[hidden] { display: none; }
+.ox-leg { list-style: none; padding: 0; display: grid; gap: 0.25rem; font-size: 0.85rem; }
+.ox-leg li + li { margin-top: 0; }
+.ox-leg i { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; margin-right: 0.4rem; vertical-align: -0.05em; }
+.ox-leg i.b { background: var(--xp-bad); } .ox-leg i.w { background: var(--xp-warn); }
+
+.ox-ctl2 { display: grid; gap: 0.5rem; justify-items: start; }
+.ox-rec { margin: 0; font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.6; padding: 0.75rem 0.9rem; border-radius: var(--radius-sm); background: var(--code-bg); border: 1px solid var(--border); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ox-cap { display: block; font-family: var(--font-sans); color: var(--muted); font-size: 0.78rem; }
+.ox-hot { color: var(--xp-bad); font-weight: 600; }
+.ox-safe { color: var(--accent); font-weight: 600; }
+.ox-rec mark { background: var(--accent-soft); color: var(--accent-soft-text); border-radius: 3px; padding: 0 0.15rem; }
+
+@media (max-width: 600px) {
+  .ox-logs { grid-template-columns: 1fr; }
+}

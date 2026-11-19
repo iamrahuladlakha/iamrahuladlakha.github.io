@@ -1,0 +1,95 @@
+/* XP widget kit styles. Loaded once by assets/js/xp.js. Uses the site tokens from site.css. */
+:root { --xp-warn: var(--amber-text); --xp-warn-soft: var(--amber-soft); --xp-bad: #b3261e; --xp-bad-soft: #fbe4e2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --xp-bad: #ff8a80; --xp-bad-soft: rgba(255, 138, 128, 0.13); } }
+:root[data-theme="dark"] { --xp-bad: #ff8a80; --xp-bad-soft: rgba(255, 138, 128, 0.13); }
+
+.post-body [data-xp] { margin: 1.8em 0; }
+.xp-card {
+  position: relative; display: grid; gap: 0.9rem; padding: 1.1rem; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elev);
+  font-size: 0.92rem; line-height: 1.5; color: var(--text);
+}
+.xp-card p { margin: 0; }
+.xp-card ul, .xp-card ol { margin: 0; }
+.xp-card code { font-size: 0.85em; overflow-wrap: anywhere; }
+.xp-hint { color: var(--muted); font-size: 0.86rem; }
+.xp-note { color: var(--muted); font-size: 0.84rem; border-left: 3px solid var(--border-strong); padding-left: 0.7rem; }
+.xp-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.xp-ctl { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.xp-ex { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.05rem 0.4rem; border-radius: 4px; background: var(--amber-soft); color: var(--amber-text); vertical-align: 0.1em; }
+.xp-panel { padding: 0.7rem 0.85rem; border-radius: var(--radius-sm); background: var(--surface); min-height: 3em; }
+.xp-ok { color: var(--accent); }
+.xp-no, .xp-bad { color: var(--xp-bad); }
+
+/* Buttons, segmented toggle, switch */
+.xp-btn, .xp-seg-btn, .xp-switch, .xp-quiz-opt {
+  font: inherit; font-size: 0.85rem; font-weight: 550; cursor: pointer; min-height: 2.25rem; color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: 999px; background: var(--surface);
+  padding: 0.35rem 0.85rem; transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.xp-btn:hover, .xp-seg-btn:hover, .xp-switch:hover, .xp-quiz-opt:hover:not(:disabled) { border-color: var(--accent); }
+.xp-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.xp-btn--primary:hover { background: var(--accent-hover); }
+.xp-btn--ghost { background: transparent; }
+.xp-btn:disabled { opacity: 0.5; cursor: default; }
+.xp-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; border: 1px solid var(--border-strong); border-radius: 12px; padding: 2px; background: var(--surface); max-width: 100%; }
+.xp-seg-btn { border: 0; border-radius: 10px; background: transparent; min-height: 2rem; padding: 0.25rem 0.75rem; }
+.xp-seg-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-soft-text); box-shadow: inset 0 0 0 1px var(--accent); }
+.xp-switch { display: inline-flex; align-items: center; gap: 0.5rem; text-align: left; }
+.xp-knob { width: 2rem; height: 1.1rem; border-radius: 999px; background: var(--border-strong); position: relative; flex: none; transition: background-color 0.15s; }
+.xp-knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: calc(1.1rem - 4px); height: calc(1.1rem - 4px); border-radius: 50%; background: var(--bg-elev); transition: transform 0.2s var(--ease); }
+.xp-switch[aria-checked="true"] .xp-knob { background: var(--accent); }
+.xp-switch[aria-checked="true"] .xp-knob::after { transform: translateX(0.9rem); }
+.xp-card button:focus-visible, .xp-card input:focus-visible, .xp-card [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Fields: slider and number input */
+.xp-fields { display: grid; gap: 0.75rem 1rem; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); align-items: end; }
+.xp-field { display: grid; gap: 0.25rem; font-size: 0.84rem; color: var(--text-soft); min-width: 0; }
+.xp-field input[type="number"] { font: inherit; font-size: 0.95rem; padding: 0.4rem 0.6rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); width: 100%; min-height: 2.4rem; }
+.xp-field input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 1.6rem; }
+.xp-out { font-variant-numeric: tabular-nums; color: var(--text); font-size: 0.82rem; min-height: 1.2em; }
+
+/* Stepper */
+.xp-stepper { display: grid; gap: 0.75rem; }
+.xp-step-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; }
+.xp-step-n { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.xp-step-dots { display: inline-flex; gap: 4px; flex: 1 1 4rem; }
+.xp-step-dots i { flex: 1; height: 4px; max-width: 2.5rem; border-radius: 2px; background: var(--border); }
+.xp-step-dots i.is-past { background: var(--accent-soft-text); opacity: 0.5; }
+.xp-step-dots i.is-on { background: var(--accent); }
+.xp-step-body { display: grid; gap: 0.6rem; padding: 0.85rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); min-height: 5rem; }
+.xp-step-body:focus { outline: none; }
+
+/* Unit grid and bar */
+.xp-dots { display: grid; grid-template-columns: repeat(var(--xp-cols, 20), minmax(0, 1fr)); gap: 3px; max-width: 26rem; }
+.xp-dots i { aspect-ratio: 1; border-radius: 50%; background: var(--border-strong); transition: transform 0.2s var(--ease); }
+.xp-dots i.a { background: var(--accent); }
+.xp-dots i.w { background: var(--xp-warn); }
+.xp-dots i.b { background: var(--xp-bad); }
+.xp-bar { display: block; height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.xp-bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s var(--ease); }
+.xp-bar.w > i { background: var(--xp-warn); }
+.xp-bar.b > i { background: var(--xp-bad); }
+
+/* Predict then reveal */
+.xp-quiz { display: grid; gap: 0.7rem; }
+.xp-quiz-q { font-weight: 650; }
+.xp-quiz-opts { display: grid; gap: 0.4rem; }
+.xp-quiz-opt { text-align: left; border-radius: var(--radius-sm); background: var(--bg); padding: 0.5rem 0.8rem; }
+.xp-quiz-opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.xp-quiz-opt:disabled { cursor: default; }
+.xp-quiz-opt.is-right { border-color: var(--accent); background: var(--accent-soft); }
+.xp-quiz-opt.is-right::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+.xp-quiz-opt.is-wrong { border-color: var(--xp-bad); background: var(--xp-bad-soft); }
+.xp-quiz-opt.is-wrong::before { content: "✗ "; color: var(--xp-bad); font-weight: 700; }
+.xp-quiz-opt.is-dim { opacity: 0.6; }
+.xp-quiz-out:empty { display: none; }
+.xp-quiz-out { padding: 0.7rem 0.85rem; border-radius: var(--radius-sm); background: var(--surface); border-left: 3px solid var(--accent); }
+
+/* "What this means for leaders" box: also styled inline in the post so it renders without JS */
+.xp-leaders { margin: 2em 0; padding: 1rem 1.2rem; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: var(--radius); background: var(--bg-elev); }
+
+@media (max-width: 600px) { .xp-card { padding: 0.85rem; } }
+@media (prefers-reduced-motion: reduce) {
+  .xp-card *, .xp-card *::before, .xp-card *::after { transition: none !important; animation: none !important; }
+}

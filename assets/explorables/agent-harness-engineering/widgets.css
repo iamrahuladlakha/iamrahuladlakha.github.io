@@ -1,0 +1,51 @@
+/* Widgets for "The Agent Harness". Shared pieces live in assets/css/xp.css. */
+.hx-flow { display: grid; grid-template-columns: minmax(0, 0.8fr) auto minmax(0, 3fr) auto minmax(0, 0.8fr); gap: 0.5rem; align-items: center; }
+.hx-end { display: grid; gap: 0.1rem; text-align: center; padding: 0.6rem 0.4rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.hx-end:first-child { border: 2px solid var(--accent); }
+.hx-end:first-child b { color: var(--accent); }
+.hx-end span { font-size: 0.75rem; color: var(--muted); }
+.hx-arr { color: var(--muted); }
+.hx-harness { display: grid; gap: 0.5rem; padding: 0.7rem; border: 2px solid var(--text); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; transition: border-color 0.2s; }
+.hx-harness.is-thin { border-style: dashed; border-color: var(--xp-warn); }
+.hx-h span { font-size: 0.8rem; color: var(--muted); font-weight: 500; }
+.hx-sw { display: grid; gap: 0.35rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.hx-sw .xp-switch { border-radius: var(--radius-sm); font-size: 0.82rem; background: var(--bg); }
+.hx-sw .xp-switch[aria-checked="false"] { color: var(--muted); border-style: dashed; }
+.hx-fail { display: grid; gap: 0.4rem; padding: 0.75rem 0.9rem; border-radius: var(--radius-sm); background: var(--surface); }
+.hx-fail ul { padding-left: 1.1rem; display: grid; gap: 0.35rem; }
+.hx-fail li + li { margin-top: 0; }
+
+.hx-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.hx-chip { font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--bg); color: var(--muted); }
+.hx-chip.is-on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-soft-text); font-weight: 650; }
+.hx-chip.hx-esc { border-style: dashed; }
+.hx-chip.hx-esc.is-on { border-color: var(--xp-warn); background: var(--xp-warn-soft); color: var(--xp-warn); }
+
+.hx-rungs { display: grid; gap: 0.3rem; max-width: 22rem; }
+.hx-rung { font-size: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); }
+.hx-rung.is-on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+.hx-rung.is-need { box-shadow: inset 3px 0 0 var(--xp-warn); font-weight: 650; }
+.hx-wl { display: grid; gap: 0.25rem; font-size: 0.78rem; color: var(--muted); max-width: 22rem; }
+.hx-warn { color: var(--xp-warn); }
+.post-body .xp-card .xp-seg-btn .xp-ex { margin-left: 0.15rem; }
+
+.hx-cmp { display: grid; gap: 0.7rem; padding-top: 0.8rem; border-top: 1px solid var(--border); }
+.hx-cmp[hidden] { display: none; }
+.hx-roles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+.hx-role { display: grid; gap: 0.1rem; text-align: center; padding: 0.5rem 0.3rem; border: 1px solid var(--accent); border-radius: var(--radius-sm); background: var(--bg); }
+.hx-role i { font-style: normal; font-size: 0.75rem; color: var(--muted); }
+.hx-role.is-bad { border-color: var(--xp-bad); background: var(--xp-bad-soft); }
+
+.hx-parts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; }
+.hx-part { display: grid; gap: 0.1rem; text-align: center; padding: 0.55rem 0.3rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--bg); transition: opacity 0.2s; }
+.hx-part i { font-style: normal; font-size: 0.74rem; color: var(--muted); }
+.hx-part.is-off { opacity: 0.5; border-style: dashed; text-decoration: line-through; }
+.hx-part.is-off i { text-decoration: none; }
+.hx-part.is-keep { border-color: var(--accent); background: var(--accent-soft); }
+.hx-part.is-cond { border-color: var(--xp-warn); background: var(--xp-warn-soft); }
+
+@media (max-width: 600px) {
+  .hx-flow { grid-template-columns: 1fr; }
+  .hx-arr { transform: rotate(90deg); justify-self: center; }
+  .hx-sw { grid-template-columns: 1fr; }
+}
