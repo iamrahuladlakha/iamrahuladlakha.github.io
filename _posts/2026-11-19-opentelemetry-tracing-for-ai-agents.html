@@ -1,0 +1,251 @@
+---
+layout: post
+title: "OpenTelemetry for AI Agents: Keeping One Trace Across Every Boundary"
+description: "How OpenTelemetry stitches agent, tool and model calls into one trace, what the GenAI conventions add, and the sampling and privacy choices in production."
+tags: ["opentelemetry", "observability", "agents", "tracing"]
+source_id: "opentelemetry-tracing"
+math: true
+---
+{% raw %}
+<p>Here's a setup most teams building agents end up with. An agent decides to call a tool, the tool lives on a separate
+server reached over the Model Context Protocol (MCP), and that server runs a slow database query. The user waits. You
+open your tracing tool to find out why, and by default you get two traces. One ends at "called tool". The other starts
+from nothing on the server side. Nothing connects them, so you can't tell which agent decision caused which query.</p>
+
+<p>That gap is what OpenTelemetry (OTel) is for. I'd treated it as background plumbing for a long time, the thing
+underneath the tracing dashboard. Once I went through how it actually works, and especially through the newer
+conventions for generative AI, I realised a lot of the design decisions in an agent platform come down to it. This post
+covers how it works, what the AI conventions add, and what I'd think about before putting it in production.</p>
+
+<h2>The problem: tracing falls apart in three places</h2>
+
+<p>A trace is one run of your system, recorded as a tree of timed steps called <strong>spans</strong>. Getting a clean
+tree is harder than it sounds, and it usually goes wrong in one of three places.</p>
+
+<p><strong>The recording code is tied to one vendor.</strong> Before there was a shared standard, every monitoring
+product shipped its own library, with its own calls and its own data format. Say you want LLM traces in one tool and
+server health in another. You end up instrumenting every request twice, in two formats, with two sets of bugs. Changing
+vendors means rewriting the instrumentation everywhere. It's like every courier printing a different shape of label, so
+switching couriers means re-labelling the whole warehouse.</p>
+
+<p><strong>The trace breaks at every program boundary.</strong> Inside one process, the "current span" sits in memory,
+so a new step knows who its parent is. Across a network call that memory is gone. Unless the caller sends its trace ID
+and span ID along with the request, the receiver starts a new, unconnected trace. That's the MCP problem above.</p>
+
+<p><strong>Recording mustn't slow the app down.</strong> If every finished span went over the network straight away, a
+service producing 30 spans a second would be making 30 upload requests a second. A slow tracing backend would then mean
+a slow app. And most of those spans are routine, so storing every one of them is expensive too.</p>
+
+<h2>How it works: two IDs, one header and a queue</h2>
+
+<p>OTel fixes all three with a small number of moving parts.</p>
+
+<p><strong>Every span carries two IDs.</strong> The trace ID is 16 bytes, written as 32 hexadecimal characters. The span
+ID is 8 bytes, or 16 hex characters. Sixteen random bytes give \(2^{128} \approx 3.4 \times 10^{38}\) possible trace IDs,
+so in practice two of them never collide and no service has to coordinate with any other to pick one. A span also has a
+name, start and end times, a parent, a status, and <em>attributes</em> (key-value facts such as the model used).
+<em>Resource attributes</em> describe the program itself, like <code>service.name</code>, and get stamped on every span
+that program produces.</p>
+
+<p><strong>One header carries the context across boundaries.</strong> The caller adds a W3C <code>traceparent</code>
+header to every outgoing request. It has four parts: a version (<code>00</code>), the 32-character trace ID, the
+caller's current span ID, and a flags byte, where <code>01</code> means "this trace is being kept". The receiver copies
+the trace ID, makes its first span a child of the caller's span, and respects the keep flag, so the trace stays whole
+from end to end.</p>
+
+<p>MCP needed a variation on this. One MCP connection can carry many requests inside a single HTTP request, or run
+over a local pipe with no HTTP at all, so a header isn't enough. The MCP conventions put <code>traceparent</code>,
+<code>tracestate</code> and <code>baggage</code> into each request's <code>params._meta</code> field instead. The server
+span becomes a child of the client span. The HTTP request that happened to carry the message is recorded as a
+<em>link</em> (a pointer to a span that isn't the parent), because one MCP request might be retried over several HTTP
+requests.</p>
+
+<svg viewBox="0 0 440 210" width="100%" style="max-width:600px" role="img" aria-label="An agent service and an MCP tool server each record spans; the traceparent context travels in the request's _meta field, so the server's spans become children of the agent's tool-call span and the two services form one trace tree">
+  <defs><marker id="otb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="10" text-anchor="middle" style="fill: var(--text)">
+    <rect x="10" y="10" width="190" height="110" rx="8" style="fill: var(--surface); stroke: var(--border)" stroke-width="2"/>
+    <text x="105" y="28">agent service</text>
+    <rect x="20" y="38" width="170" height="18" rx="3" style="fill: var(--bg); stroke: var(--accent)"/><text x="105" y="51">invoke_agent support_agent</text>
+    <rect x="32" y="62" width="150" height="18" rx="3" style="fill: var(--bg); stroke: var(--border)"/><text x="107" y="75">chat (model asks for tool)</text>
+    <rect x="32" y="86" width="150" height="18" rx="3" style="fill: var(--bg); stroke: var(--accent)" stroke-width="2"/><text x="107" y="99">execute_tool lookup_order</text>
+    <rect x="240" y="60" width="190" height="85" rx="8" style="fill: var(--surface); stroke: var(--border)" stroke-width="2"/>
+    <text x="335" y="78">MCP tool server</text>
+    <rect x="250" y="88" width="170" height="18" rx="3" style="fill: var(--bg); stroke: var(--accent)"/><text x="335" y="101">server span: lookup_order</text>
+    <rect x="262" y="112" width="150" height="18" rx="3" style="fill: var(--bg); stroke: var(--border)"/><text x="337" y="125">database query</text>
+    <rect x="70" y="160" width="300" height="40" rx="8" style="fill: var(--code-bg); stroke: var(--border)" stroke-dasharray="4 3"/>
+    <text x="220" y="178">one trace ID across both services</text>
+    <text x="220" y="192" font-size="9" style="fill: var(--muted)">the server span's parent is the agent's tool span</text>
+  </g>
+  <g fill="none" style="stroke: var(--accent)" stroke-width="2">
+    <path d="M182,95 L248,97" marker-end="url(#otb-arrow)"/>
+  </g>
+  <g font-size="9" style="fill: var(--accent)" text-anchor="middle">
+    <text x="215" y="86">traceparent</text>
+    <text x="215" y="114">in _meta</text>
+  </g>
+</svg>
+
+<p><strong>Inside the process, a short pipeline moves spans out.</strong> Your code, or a library, calls a
+<em>tracer</em> to start and end spans. OTel keeps track of the current span even across async code, so nesting
+happens without you passing parents around. Finished spans go to a <em>span processor</em>. The batch processor
+queues them, and it's also the last place you can filter or mask data before anything leaves the program. An
+<em>exporter</em> then sends batches in OTel's wire format, OTLP, over HTTP or gRPC. (Not every backend takes both.
+Langfuse, for example, accepts OTLP over HTTP only.) A batch goes out when it hits a size limit or a time limit,
+whichever comes first, so those 30 uploads a second become about one. Optionally, a separate <em>collector</em> process
+receives spans from many services, applies central filtering, masking and sampling, and fans them out to more than one
+backend.</p>
+
+<svg viewBox="0 0 440 150" width="100%" style="max-width:600px" role="img" aria-label="Spans flow from your code to a tracer, then a batch processor where masking and filtering happen, then an OTLP exporter, then an optional collector that samples and masks centrally, and finally to two different backends">
+  <defs><marker id="otp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="10" text-anchor="middle" style="fill: var(--text)">
+    <rect x="5" y="20" width="270" height="70" rx="8" style="fill: none; stroke: var(--border)" stroke-dasharray="4 3"/>
+    <text x="140" y="104" font-size="9" style="fill: var(--muted)">inside your program</text>
+    <rect x="15" y="35" width="70" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="50" y="52">tracer</text><text x="50" y="65" font-size="9" style="fill: var(--muted)">start / end</text>
+    <rect x="100" y="35" width="80" height="40" rx="6" style="fill: var(--surface); stroke: var(--accent)" stroke-width="2"/><text x="140" y="52" style="fill: var(--accent)">batch</text><text x="140" y="65" font-size="9" style="fill: var(--muted)">mask, filter</text>
+    <rect x="195" y="35" width="70" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="230" y="52">exporter</text><text x="230" y="65" font-size="9" style="fill: var(--muted)">OTLP</text>
+    <rect x="295" y="35" width="70" height="40" rx="6" style="fill: var(--code-bg); stroke: var(--border)"/><text x="330" y="52">collector</text><text x="330" y="65" font-size="9" style="fill: var(--muted)">optional</text>
+    <rect x="380" y="10" width="55" height="34" rx="6" style="fill: var(--surface); stroke: var(--accent)"/><text x="407" y="25">LLM</text><text x="407" y="37">tracing</text>
+    <rect x="380" y="66" width="55" height="34" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="407" y="81">infra</text><text x="407" y="93">monitoring</text>
+    <text x="330" y="125" font-size="9" style="fill: var(--muted)">tail sampling and central masking live here</text>
+  </g>
+  <g fill="none" style="stroke: var(--muted)">
+    <path d="M85,55 L98,55" marker-end="url(#otp-arrow)"/>
+    <path d="M180,55 L193,55" marker-end="url(#otp-arrow)"/>
+    <path d="M265,55 L293,55" marker-end="url(#otp-arrow)"/>
+    <path d="M365,48 L378,30" marker-end="url(#otp-arrow)"/>
+    <path d="M365,62 L378,80" marker-end="url(#otp-arrow)"/>
+    <path d="M330,78 L330,113"/>
+  </g>
+</svg>
+
+<p>That's the "record once, export many" story. You instrument in one format and attach one exporter per destination.
+It's also why modern LLM tracing tools build their SDKs on top of OTel and not beside it: spans from LangChain, the
+Vercel AI SDK or vLLM land in the same trace automatically, and any language with an OTel SDK can send to them.</p>
+
+<h2>The GenAI conventions: agreeing on what a span means</h2>
+
+<p>A shared format still isn't enough if one library writes <code>model</code> and another writes
+<code>llm.model_name</code>. OTel's <em>semantic conventions</em> fix the names, and the GenAI set (everything under
+<code>gen_ai.*</code>) covers models, agents and tools. Every kind of step gets a fixed operation name and a span kind.
+<code>CLIENT</code> means a call out to another program, including the wait for the reply. <code>INTERNAL</code> means
+work done in-process. One agent run comes out like this:</p>
+
+<pre>invoke_agent support_agent          INTERNAL   the whole run
+├── chat gpt-4o                     CLIENT     model asks for a tool
+├── execute_tool lookup_order       INTERNAL   the tool runs
+└── chat gpt-4o                     CLIENT     model writes the answer</pre>
+
+<p>There are also operations for workflows you define yourself (<code>invoke_workflow</code>), framework entry points
+(<code>invoke_runner</code>), a distinct planning phase (<code>plan</code>), retrieval, and memory reads and writes. An
+agent hosted by a remote service is still <code>invoke_agent</code>, but with kind <code>CLIENT</code>. A handoff to
+another agent through a tool is recorded on the tool span. If control comes back to the caller, the target agent's span
+sits under the tool span. If control is passed on for good, it becomes a sibling of the caller.</p>
+
+<p>Three rules in these conventions matter more than they first look:</p>
+
+<ul>
+  <li><strong>Names stay low-cardinality.</strong> A span name is the operation plus a stable target, like
+    <code>execute_tool lookup_order</code>, and never a request ID. The agent name should be something meaningful.
+    A framework class name like <code>StateGraph</code> doesn't count, and if there's no real name the attribute is left
+    out altogether.</li>
+  <li><strong>Sampling attributes go on at creation time.</strong> The operation, agent name, provider, model and tool
+    name should be set when the span starts. A head sampler decides at that moment, so a rule like "keep every trace for
+    the refund agent" only works if the name is already there.</li>
+  <li><strong>One span per logical operation.</strong> A model call that the SDK retried automatically is one span covering
+    all the attempts.</li>
+</ul>
+
+<p>One caveat I'd flag in any design review: <code>gen_ai.provider.name</code> is the instrumentation's best guess. If
+calls go through a proxy or an LLM gateway, it may not match the provider that actually served the request.</p>
+
+<h2>A worked example: sampling an agent fleet</h2>
+
+<p>Say a platform runs 10,000 agent traces a day, 1% of them (100) fail, and you can afford to keep 20%.</p>
+
+<p><strong>Head sampling</strong> decides at the start of the trace, usually from the trace ID itself, so every service
+reaches the same answer without talking to the others. It keeps \(r \times N\) traces:</p>
+
+\[ \text{kept} = 0.2 \times 10{,}000 = 2{,}000 \]
+
+<p>That's cheap and simple, but at the moment of deciding nobody knows which runs will fail. So it keeps only
+\(0.2 \times 100 = 20\) of the 100 failures. The traces you most need are exactly the ones it throws away.</p>
+
+<p><strong>Tail sampling</strong> waits until the trace is finished and then decides with full knowledge, for example
+"every trace with an error, plus 20% of the rest". With \(E\) error traces:</p>
+
+\[ \text{kept} = E + r \times (N - E) = 100 + 0.2 \times 9{,}900 = 2{,}080 \]
+
+<p>For 80 more traces (about 4% more storage), all 100 failures are on file. The catch is where it runs. Tail sampling
+needs a collector that holds every in-flight trace in memory until it ends. That's fine for a quick web request. It's much
+harder for an agent run that takes minutes, or that pauses to wait for a human to approve
+something.</p>
+
+<p>The second half of the answer is metrics. The GenAI conventions define histograms (bucketed counts) that are
+recorded for every operation, sampled or not: agent duration, tool duration, the number of model and tool calls per
+invocation, time to first token and time per output token. Time per output token separates generation speed from the
+wait before the first token:</p>
+
+\[ \text{TPOT} = \frac{T_{\text{request}} - T_{\text{first}}}{n_{\text{out}} - 1} \]
+
+<p>In plain words: take the total time, subtract the time to the first token, and divide by the tokens produced after the
+first one. A 4.2 s request whose first token arrived at 0.6 s and which produced 181 tokens works out to
+\((4.2 - 0.6) \div 180 = 0.02\) s per token. Dashboards and alerts should be built on metrics like this, because they
+see all the traffic. Sampled traces are for drilling into individual runs.</p>
+
+<h2>Architecture and production implications</h2>
+
+<p><strong>The default trace has no words in it.</strong> This one surprises people. Prompts, replies, system
+instructions, tool arguments and tool results are treated as sensitive and are off by default. One setting,
+<code>OTEL_INSTRUMENTATION_GENAI_CAPTURE_CONTENT</code>, controls it. The options are <code>NO_CONTENT</code> (the default),
+<code>SPAN_ONLY</code>, <code>EVENT_ONLY</code> or <code>SPAN_AND_EVENT</code>, and an unrecognised value falls back to
+no content, so a typo fails closed. Events go through OTel's logs pipeline, which means they can sit in a different store
+with its own access rules and retention. For production the conventions point to a third option: a hook you supply
+uploads the messages to object storage and puts only the address on the span, in <code>gen_ai.input.messages_ref</code>
+and its siblings. The hook runs whatever the sampler decided, so content is kept even for traces that get dropped. My
+take: decide this per environment before your first incident. Debugging a wrong answer from a trace with no words in it
+is a bad afternoon.</p>
+
+<p><strong>Whatever you propagate, everyone downstream sees.</strong> Baggage (key-values carried along with the trace
+context) gets added to outgoing headers, including calls to third-party APIs. Put a session ID in it. Never put an email
+address in it.</p>
+
+<p><strong>Short-lived code loses spans.</strong> A serverless handler or batch job can end with spans still sitting in
+the queue. Call <code>flush()</code> or <code>shutdown()</code> before you return, every time.</p>
+
+<p><strong>Choose where masking runs.</strong> Mask in the application when data must never leave the process. Mask in a
+collector when you want one consistent policy across many services and the collector is inside your trust boundary.
+Either way, filter whole traces where you can. Dropping a parent span while keeping its children leaves orphans that no
+UI can place.</p>
+
+<p><strong>The conventions are still moving.</strong> Every <code>gen_ai.*</code> attribute, span and metric is at
+Development status, and there's no schema URL yet to translate old names into new ones automatically. Only the
+borrowed core attributes like <code>error.type</code> and <code>server.address</code> are stable. In practice that
+means pinning instrumentation versions, checking how your backend reads a given library's spans, and re-checking
+dashboards on every upgrade.</p>
+
+<p><strong>What I'd do differently.</strong> I'd name every agent and workflow deliberately on day one, because that name
+becomes the span name, the metric dimension and the sampling key all at once. I'd propagate context at every boundary I
+own (HTTP headers between services, <code>_meta</code> on MCP calls, message attributes on queues) before writing a
+single dashboard. And I'd decide the content-capture policy alongside the data-retention policy, not after it.</p>
+
+<h2>Takeaways</h2>
+
+<ul>
+  <li>OTel is three ideas: spans in a shared format, a <code>traceparent</code> label that travels with every request,
+    and a batching pipeline that can export to any backend.</li>
+  <li>Broken traces are almost always a missing propagation step. For MCP, the context travels in
+    <code>_meta</code>, not a header.</li>
+  <li>The GenAI conventions give agent runs a common shape: <code>invoke_agent</code>, <code>chat</code> and
+    <code>execute_tool</code>, with low-cardinality names set when the span starts.</li>
+  <li>Head sampling is cheap but blind. Tail sampling keeps the failures but needs memory, which is hard for long agent
+    runs. Metrics cover the gap because they count everything.</li>
+  <li>Content capture is off by default. In production, store content separately and keep only a reference on the
+    span.</li>
+</ul>
+
+<p>The picture I keep coming back to is a restaurant order ticket. The waiter writes the table number on it, every
+station adds its start and finish times, and the ticket travels with the food. At the end of the night you can lay the
+tickets out and see where each order spent its time, whoever ends up doing the accounts. I'm curious which boundary in
+your stack was the last one to get a <code>traceparent</code>.</p>
+
+{% endraw %}
