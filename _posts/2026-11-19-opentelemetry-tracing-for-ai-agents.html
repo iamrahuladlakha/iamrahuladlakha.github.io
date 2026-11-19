@@ -60,6 +60,7 @@ span becomes a child of the client span. The HTTP request that happened to carry
 <em>link</em> (a pointer to a span that isn't the parent), because one MCP request might be retried over several HTTP
 requests.</p>
 
+<div class="xp" data-xp="traceparent">
 <svg viewBox="0 0 440 210" width="100%" style="max-width:600px" role="img" aria-label="An agent service and an MCP tool server each record spans; the traceparent context travels in the request's _meta field, so the server's spans become children of the agent's tool-call span and the two services form one trace tree">
   <defs><marker id="otb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
   <g font-size="10" text-anchor="middle" style="fill: var(--text)">
@@ -84,6 +85,7 @@ requests.</p>
     <text x="215" y="114">in _meta</text>
   </g>
 </svg>
+</div>
 
 <p><strong>Inside the process, a short pipeline moves spans out.</strong> Your code, or a library, calls a
 <em>tracer</em> to start and end spans. OTel keeps track of the current span even across async code, so nesting
@@ -95,6 +97,7 @@ whichever comes first, so those 30 uploads a second become about one. Optionally
 receives spans from many services, applies central filtering, masking and sampling, and fans them out to more than one
 backend.</p>
 
+<div class="xp" data-xp="pipeline">
 <svg viewBox="0 0 440 150" width="100%" style="max-width:600px" role="img" aria-label="Spans flow from your code to a tracer, then a batch processor where masking and filtering happen, then an OTLP exporter, then an optional collector that samples and masks centrally, and finally to two different backends">
   <defs><marker id="otp-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
   <g font-size="10" text-anchor="middle" style="fill: var(--text)">
@@ -117,6 +120,7 @@ backend.</p>
     <path d="M330,78 L330,113"/>
   </g>
 </svg>
+</div>
 
 <p>That's the "record once, export many" story. You instrument in one format and attach one exporter per destination.
 It's also why modern LLM tracing tools build their SDKs on top of OTel and not beside it: spans from LangChain, the
@@ -130,10 +134,12 @@ Vercel AI SDK or vLLM land in the same trace automatically, and any language wit
 <code>CLIENT</code> means a call out to another program, including the wait for the reply. <code>INTERNAL</code> means
 work done in-process. One agent run comes out like this:</p>
 
+<div class="xp" data-xp="spantree">
 <pre>invoke_agent support_agent          INTERNAL   the whole run
 ├── chat gpt-4o                     CLIENT     model asks for a tool
 ├── execute_tool lookup_order       INTERNAL   the tool runs
 └── chat gpt-4o                     CLIENT     model writes the answer</pre>
+</div>
 
 <p>There are also operations for workflows you define yourself (<code>invoke_workflow</code>), framework entry points
 (<code>invoke_runner</code>), a distinct planning phase (<code>plan</code>), retrieval, and memory reads and writes. An
@@ -180,6 +186,8 @@ needs a collector that holds every in-flight trace in memory until it ends. That
 harder for an agent run that takes minutes, or that pauses to wait for a human to approve
 something.</p>
 
+<div class="xp" data-xp="sampling" hidden></div>
+
 <p>The second half of the answer is metrics. The GenAI conventions define histograms (bucketed counts) that are
 recorded for every operation, sampled or not: agent duration, tool duration, the number of model and tool calls per
 invocation, time to first token and time per output token. Time per output token separates generation speed from the
@@ -191,6 +199,8 @@ wait before the first token:</p>
 first one. A 4.2 s request whose first token arrived at 0.6 s and which produced 181 tokens works out to
 \((4.2 - 0.6) \div 180 = 0.02\) s per token. Dashboards and alerts should be built on metrics like this, because they
 see all the traffic. Sampled traces are for drilling into individual runs.</p>
+
+<div class="xp" data-xp="tpot" hidden></div>
 
 <h2>Architecture and production implications</h2>
 
@@ -247,5 +257,7 @@ single dashboard. And I'd decide the content-capture policy alongside the data-r
 station adds its start and finish times, and the ticket travels with the food. At the end of the night you can lay the
 tickets out and see where each order spent its time, whoever ends up doing the accounts. I'm curious which boundary in
 your stack was the last one to get a <code>traceparent</code>.</p>
+
+<script src="/assets/js/explorables/opentelemetry.js" defer></script>
 
 {% endraw %}
