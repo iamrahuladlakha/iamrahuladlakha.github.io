@@ -63,6 +63,7 @@ designing that environment, and treating each agent failure as a missing piece o
 <p>The way I picture the split: the model is the brain, the tools are the hands, and the harness sits between them,
 with an append-only history underneath that outlives any single run.</p>
 
+<div class="xp" data-xp="jobs">
 <svg viewBox="0 0 440 200" width="100%" style="max-width:600px" role="img" aria-label="The model proposes an action to the harness; the harness checks policy and evidence and passes only authorised actions to tools in a sandbox; every step is written to an append-only history">
   <defs><marker id="hb-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
   <g font-size="11" text-anchor="middle" style="fill: var(--text)">
@@ -91,6 +92,7 @@ with an append-only history underneath that outlives any single run.</p>
     <text x="226" y="122">every step</text>
   </g>
 </svg>
+</div>
 
 <p>The consequence of this shape is what I find most useful as an architect. A crashed sandbox loses nothing
 that matters, because the record lives elsewhere. A new model drops in while the tools and policy stay open to inspection. A resumed task can rebuild its state from
@@ -102,6 +104,7 @@ builds an artefact from the current task state, the sensors verify it, and if th
 returned. If not, the gap the sensors found is added to the state and the next attempt starts. After the cap (often
 three), the harness stops and hands the task to a person.</p>
 
+<div class="xp" data-xp="loop">
 <svg viewBox="0 0 440 170" width="100%" style="max-width:600px" role="img" aria-label="A bounded loop: build from state, verify with sensors, return on pass, otherwise add the gap to state and retry until the cap, then escalate to a person">
   <defs><marker id="hl-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
   <g font-size="11" text-anchor="middle" style="fill: var(--text)">
@@ -126,6 +129,7 @@ three), the harness stops and hands the task to a person.</p>
     <text x="256" y="124">cap hit</text>
   </g>
 </svg>
+</div>
 
 <p>The division of labour is the point: <strong>the model decides <em>how</em> to repair; the harness decides
 <em>whether</em> another attempt is allowed.</strong></p>
@@ -159,13 +163,39 @@ a tool or a policy.</p>
 <strong>planner</strong> that turns a one-to-four-sentence prompt into a full product spec, a <strong>generator</strong>
 that builds it, and an <strong>evaluator</strong> that clicks through the running app with a browser tool, files bugs
 and grades against criteria. Before each chunk of work, generator and evaluator agreed on a contract for what "done"
-meant, with 27 test criteria for one level-editor sprint. Compared with a single agent on the same prompt (a retro game
+meant, with 27 test criteria for one level-editor sprint.</p>
+
+<div class="xp" data-xp="evaluator" hidden></div>
+
+<p>Compared with a single agent on the same prompt (a retro game
 maker), the harness cost over 20× more. But only its game was actually playable.</p>
 
 <p>The reason for the separate evaluator is the cheque problem again. Asked to grade their own work, agents tend to
 praise it confidently even when it's mediocre, especially on subjective tasks with no test to run. A separate,
 sceptical evaluator with concrete criteria is a much stronger check. It still drifts lenient, so you tune it: read its
 logs, find where its judgement differs from yours, update its instructions.</p>
+
+<h3>Two more cases, outside coding</h3>
+
+<p>The seven jobs aren't specific to code, so I find it useful to run the same checklist on agents in other domains.
+These two are illustrative examples I've made up to show the pattern, not case studies, and they have no measured
+numbers. Both are also in the seven-jobs explorer and the maturity ladder on this page, so you can switch jobs off and
+watch what breaks.</p>
+
+<p><strong>Example (finance): matching invoices to purchase orders.</strong> An agent reads each invoice, finds the
+matching purchase order and queues the payment. The task contract says "done when every invoice line is matched or
+flagged", so the agent can't call a half-matched invoice finished. The sensor is a reconciliation check: matched totals
+must agree, or the invoice goes back with the gap attached. Durable state records which invoices are already matched,
+so a restart doesn't pay anything twice. And the one action that can't be undone, releasing the payment, sits behind a
+permission check in code and a person's approval. If the agent ever matches a duplicate invoice, the fix is the same as
+the UI-and-database rule above: a line in the guide <em>and</em> a duplicate check that fails the run.</p>
+
+<p><strong>Example (healthcare intake): summarising a referral form.</strong> An agent reads a referral form and writes
+a structured summary for a triage nurse, then proposes a slot. Here the contract bounds the output: intake facts only,
+no advice. A schema validator is the sensor that matters most, because a missing allergy field is worse than a clumsy
+sentence. State holds what the patient has already answered, so a context reset doesn't make them repeat themselves.
+The agent proposes the slot, and the nurse confirms it. That's the "model suggests, policy checks, the tool executes"
+split, with a person as the policy.</p>
 
 <h2>Architecture and production implications</h2>
 
@@ -175,6 +205,8 @@ model; level 1 adds a project guide and tools; level 2 adds structured state, te
 permissions, traces, recovery and human gates. A short, low-risk task needs level 1. A six-hour run that edits files
 and opens pull requests needs level 3. My rule of thumb: <em>match the weight of the harness to how much can go
 wrong</em>, and no more.</p>
+
+<div class="xp" data-xp="ladder" hidden></div>
 
 <p><strong>Long runs need a context strategy, not just a bigger window.</strong> On long tasks, models lose coherence as
 their context fills, and some rush to finish as they sense the window running out, a behaviour
@@ -193,6 +225,8 @@ a browser-based music studio in about 4 hours for about $124 in tokens, and the 
 were display-only. So: re-test the harness on every model upgrade, and delete what no longer earns its place. Change
 receipts are what make those upgrades comparable.</p>
 
+<div class="xp" data-xp="assumptions" hidden></div>
+
 <p><strong>Know where your interface ends and your harness begins.</strong> A distinction I find helpful in
 architecture reviews: the <em>interface</em> is what a person uses (a terminal app, a desktop window, a chat page), and
 the <em>harness</em> underneath turns the model's text into actions. At minimum that's tools, a syntax for calling them,
@@ -200,6 +234,14 @@ a parser that runs the calls, a way to hand results back, and the list of tools 
 narrow framing, a coding assistant's terminal app is an interface on top of an agent SDK, and the same harness can sit
 under several interfaces. Some people use the word more widely and call the whole coding assistant a harness. I use the
 wider definition in this post, but the narrow one is a good test for what's swappable in your own stack.</p>
+
+<p><strong>The harness has failure modes of its own.</strong> When I review a harness, I look for these as hard as I
+look for model mistakes. Every gate sits on the critical path, so a slow check slows every attempt in the loop, not just
+one. A check that is too strict doesn't remove cost, it moves it: work escalates to a person, and the human queue
+becomes the bottleneck. An evaluator drifts lenient unless someone reads its logs. A context-reset handoff file that
+misses one decision quietly loses it. And a budget set per run but not per loop still allows one stuck loop to burn the
+whole budget. The change receipt is how I watch for all of this. Retries against the cap, human corrections and cost,
+tracked across runs, tell me whether the harness is getting heavier or the agent is getting worse.</p>
 
 <p><strong>What I'd do differently next time.</strong> Write the "done when" before writing the agent. Put permission
 checks in code from day one, not in the system prompt. Give every loop a cap and a budget before the first run, not
@@ -223,9 +265,20 @@ artefact.</p>
     compounding.</li>
 </ul>
 
+<aside class="xp-leaders" aria-label="What this means for leaders" style="margin:2em 0;padding:1rem 1.2rem;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--bg-elev)">
+<p><strong>What this means for leaders.</strong> Most agent failures I see are environment failures, so the first
+budget question isn't "which model?" but "which of the seven jobs is missing?". The harness is where cost and risk
+live: in the app-building example, the full harness cost over 20× more than a single agent, and only its result
+worked. The decision to make is how heavy a harness each use case gets, matched to how much can go wrong. Ask your team
+three things. What does "done" mean, written down before the run? Which actions need a person, and is that enforced in
+code? And when the next model arrives, which components will you re-test and remove?</p>
+</aside>
+
 <p>The chef analogy stuck with me: the model is the chef, and the harness is the kitchen, with its order tickets,
 recipe binder, tasting before plating, the head chef's sign-off on anything special, and the log of every order. The
 same chef cooks very differently in a well-run kitchen. I'd be curious which of the seven jobs others find themselves
 building first.</p>
+
+<script src="/assets/js/xp.js" defer></script><script src="/assets/explorables/agent-harness-engineering/widgets.js" defer></script>
 
 {% endraw %}

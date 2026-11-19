@@ -66,6 +66,7 @@ traces you can replay.</p>
 <p>Take a food-delivery support agent. A customer asks "where's my order?" and gets a reply 1,825 ms later. The trace
 has five spans:</p>
 
+<div class="xp" data-xp="waterfall">
 <svg viewBox="0 0 440 170" width="100%" style="max-width:600px" role="img" aria-label="One run drawn as nested timed bars: a prompt guardrail check, a model call, a guardrail check on the tool call, the tracking tool and the model's reply, adding up to 1,825 ms">
   <g font-size="10" style="fill: var(--text)">
     <rect x="10" y="10" width="420" height="22" rx="4" style="fill: var(--surface); stroke: var(--border)"/>
@@ -85,6 +86,7 @@ has five spans:</p>
     <text x="10" y="166">bar length is proportional to time</text>
   </g>
 </svg>
+</div>
 
 <p>35 + 900 + 40 + 250 + 600 = 1,825 ms. The first model call is 900 of those, about 49%. The two guardrail checks
 together are 75 ms, about 4%. That's the first thing a trace gives you for free: an honest picture of where the
@@ -95,19 +97,44 @@ investigation takes minutes. The tracking tool's result included a line from the
 saying the customer was owed a refund and it should be issued now. The very next model span proposed
 <code>issue_refund</code>. The guardrail span below it says "allow", with the policy version that allowed it.</p>
 
+<div class="xp" data-xp="guardrail" hidden></div>
+
 <p>So the team knows exactly what broke. Text that came back from a tool was treated as an instruction, and the
 guardrail never compared the proposed action with what the customer actually asked for. That's a precise fix, not
 a vague "make the prompt more careful".</p>
+
+<div class="xp" data-xp="incident" hidden></div>
 
 <p>Then comes the part I like best. They write a stricter check and replay last week's 50,000 recorded actions
 through it, offline. It would have blocked this refund and 12 others like it. It would also have blocked 30
 legitimate refunds that customers had asked for. Those 30 false blocks go back to the team to tune before the check
 goes live. Without replay, those 30 customers would have found the problem for them.</p>
 
+<h3>Two more cases, outside food delivery</h3>
+
+<p>The refund is one shape of a general problem, so here are two more. Both are illustrative examples I've made up to
+show the pattern, not incidents I'm reporting, and they carry no measured numbers.</p>
+
+<p><strong>Example (coding agent): the test file that disappeared.</strong> A coding agent is asked to fix a failing
+test, and its pull request deletes the test file instead. The trace reads the same way as the refund. A
+<code>read_file</code> tool span returned a source file with a stale comment saying the tests in it were obsolete and
+should be removed. The next model span proposed deleting the file. The guardrail span said "allow", with its policy
+version. Same diagnosis: text from a tool was treated as an instruction, and nothing compared the proposed action with
+the task the agent was given. The stricter check, "a deletion has to be justified by the task, not by file contents",
+gets replayed over past runs before it ships, exactly like the refund check.</p>
+
+<p><strong>Example (healthcare intake): a trace you can't keep raw.</strong> An intake agent collects a patient's
+name, date of birth and reason for the visit, then books a follow-up. Here the trace store is the risk. I'd keep the
+metadata on every span (which agent, which tools, which verdicts, timings) and redact the content on write, so a name
+becomes <code>[NAME]</code> before it's stored. Where the team does need full content to debug, it goes to a separate,
+access-controlled store with a short retention period, and the span keeps only a reference. The redaction toggle further
+down shows all four options side by side, including this case.</p>
+
 <h2>Replay turns traces into a release gate</h2>
 
 <p>Once you have traces, the loop that follows almost designs itself:</p>
 
+<div class="xp" data-xp="replay">
 <svg viewBox="0 0 440 180" width="100%" style="max-width:600px" role="img" aria-label="A loop: record production traces, add new attacks from red teaming, replay both through a candidate guardrail, measure false blocks and false allows, ship if the numbers hold, then record again">
   <defs><marker id="ao-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
   <g font-size="11" text-anchor="middle" style="fill: var(--text)">
@@ -130,6 +157,7 @@ goes live. Without replay, those 30 customers would have found the problem for t
     <path d="M320,150 L65,150 L65,66" marker-end="url(#ao-arrow)"/>
   </g>
 </svg>
+</div>
 
 <p>Record production runs. Bring in new attacks from red teaming and from a running list of the ways each agent
 could be attacked. Replay the normal traffic and the attacks through the candidate guardrail or policy. Count the
@@ -175,6 +203,8 @@ because content capture is off by default. You switch it on deliberately, and in
 to separate access-controlled storage and keep only a reference on the span. Every one of these controls removes
 detail an investigation might want later, and I think that's a trade you make on purpose.</p>
 
+<div class="xp" data-xp="redaction" hidden></div>
+
 <p><strong>Volume and cost grow with every step.</strong> Each step of each run produces data, and agents take a lot
 of steps. At high traffic, teams sample: keep a share of normal runs and every flagged one, and keep metadata longer
 than content, so the long-term store holds the who, what and when, and the full text only for as long as it's
@@ -183,6 +213,15 @@ needed.</p>
 <p><strong>Replay shows you the past.</strong> Replayed traffic contains last month's users and last month's
 attacks. It's the best test of a change you have. It doesn't guarantee anything about next month, so keep the red
 teaming going alongside it.</p>
+
+<p><strong>Tracing has failure modes of its own.</strong> The ones I check for in a review: exporting spans on the
+request path, so the customer waits for your telemetry on top of the 1,825 ms the run already took (batch and export in
+the background instead). A dropped parent span, which leaves children that no viewer can place. A sampling rule that
+decides before a run is flagged and throws away the one run you needed. A trace store with broader read access than the
+systems it records, which makes it the easiest place to steal customer data from. And replay that nobody budgets for:
+pushing last week's 50,000 actions through a candidate check is a real batch job, so I plan its compute and its review
+time as part of the release, not as an afterthought. The thing I'd do differently: decide the redaction and retention
+rules before the first incident, not during it.</p>
 
 <p><strong>What I'd do from day one.</strong> One trace ID carried end to end, across the model, every tool and every
 guardrail, including anything that crosses a service boundary. The policy version on every verdict. Redaction at
@@ -203,6 +242,16 @@ because a run that finishes without an exception can still be a run where the ag
     schedule.</li>
 </ul>
 
+<aside class="xp-leaders" aria-label="What this means for leaders" style="margin:2em 0;padding:1rem 1.2rem;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--bg-elev)">
+<p><strong>What this means for leaders.</strong> Agents choose their path at run time, so without one connected trace
+per run, every incident turns into an argument between three logs. Tracing has a real cost: it's a store of sensitive
+data that grows with every step, and it needs redaction, access rules and deletion like any customer database. Skipping
+it costs more, because you find guardrail mistakes through customers, like the 30 legitimate refunds that replay would
+have blocked. The decision to make is whether replay becomes a release gate for prompts, guardrails and policies. Ask
+your team: can you show me one run end to end? Is the policy version on every verdict? What did the last replay block
+that it shouldn't have?</p>
+</aside>
+
 <p>The picture I keep in my head is a parcel's tracking history. Collected, sorted at the depot, loaded on van 12,
 delivered at 14:02, photo of the doorstep. Every scan has a time and a place under one tracking number, so "where did
 it go wrong?" always has an answer. I'm curious how far other teams have got with this: are you replaying production
@@ -216,5 +265,7 @@ traffic before you ship a prompt or guardrail change, or is it still on the list
   <li>Pilditch et al. (2026). <a href="https://arxiv.org/abs/2610.08364">Transect: Retaining Observability for
     Long-Horizon LLM Agent Evaluations</a>. arXiv:2610.08364.</li>
 </ul>
+
+<script src="/assets/js/xp.js" defer></script><script src="/assets/explorables/agent-observability-traces-replay/widgets.js" defer></script>
 
 {% endraw %}
