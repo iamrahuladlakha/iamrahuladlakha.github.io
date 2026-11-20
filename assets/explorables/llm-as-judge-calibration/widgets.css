@@ -1,0 +1,25 @@
+/* Widgets for "LLM-as-a-Judge". Shared pieces live in assets/css/xp.css. */
+.lj-prompt { display: grid; gap: 0.3rem; padding: 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--code-bg); min-width: 0; }
+.lj-cap { font-size: 0.78rem; color: var(--muted); }
+.lj-line { font: inherit; font-size: 0.84rem; text-align: left; cursor: pointer; color: var(--text); display: grid; gap: 0.1rem; padding: 0.35rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); overflow-wrap: anywhere; }
+.lj-line.is-on { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: -1px; }
+.lj-tag { font-size: 0.75rem; font-weight: 650; color: var(--accent); }
+.lj-det { display: grid; gap: 0.3rem; }
+
+.lj-mx { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lj-out { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.lj-out b { color: var(--accent); }
+.lj-bars { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0.4rem 0.6rem; align-items: center; max-width: 26rem; }
+.lj-bl { font-size: 0.8rem; color: var(--muted); }
+
+.lj-stages { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.lj-stage { font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--bg); }
+.lj-stage.is-past { color: var(--text); }
+.lj-stage.is-on { border-color: var(--accent); color: var(--accent); font-weight: 650; }
+.lj-split { display: flex; gap: 3px; font-size: 0.78rem; margin-bottom: 0.5rem; }
+.lj-split span { min-width: 0; padding: 0.3rem 0.4rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); text-align: center; white-space: nowrap; overflow: hidden; }
+.lj-split span:nth-child(3) { border-color: var(--accent); color: var(--accent); }
+
+@media (max-width: 420px) {
+  .lj-mx { grid-template-columns: 1fr; }
+}
