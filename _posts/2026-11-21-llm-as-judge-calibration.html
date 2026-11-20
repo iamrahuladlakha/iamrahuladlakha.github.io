@@ -1,0 +1,290 @@
+---
+layout: post
+title: "LLM-as-a-Judge: Calibrate the Judge Before You Trust It"
+description: "A judge model can agree with your reviewers 90% of the time and catch nothing. How to build one, measure it with Cohen's kappa, and run it in production."
+tags: ["evals", "llm", "agents", "metrics"]
+source_id: "llm-as-judge"
+math: true
+---
+{% raw %}
+<p>A judge that agrees with your human reviewers 90% of the time can be completely useless. The first time I worked
+through why, it changed how I look at every eval dashboard that reports "agreement" as its headline number. This post
+is my attempt to lay out what an LLM-as-a-judge is, how I'd check that one deserves trust, and what it takes to run one
+in production without fooling yourself.</p>
+
+<p>By an LLM-as-a-judge I mean a second model that gets three things: the input, your application's output and a
+written rule. It returns a verdict (pass or fail, a label, or a score) plus its reasoning. That lets you check qualities
+only language can describe, like "did it answer the question?" or "is every claim supported?", on thousands of outputs
+a day.</p>
+
+<h2>The problem: the checks that matter need reading</h2>
+
+<p>Some checks are easy for code. Is this valid JSON? Does it contain a link? Is it under 300 words? Others need
+someone to read the text. Is the tone right? Does the summary keep the key points? Did the agent invent an appointment
+time? A person can judge those, but not ten thousand times a day.</p>
+
+<p>Here's the arithmetic that made it concrete for me. A support bot handles 200,000 replies a day. A typical judge
+call costs somewhere between $0.01 and $0.10. At $0.02 a call, judging 5% of traffic (10,000 replies) costs $200 a day.
+Ten thousand expert reviews at two minutes each would be 20,000 minutes, about 333 hours of work, every single day.
+It's the head chef who tastes every plate: perfect quality control at 20 covers a night, impossible at 2,000.</p>
+
+<p>So you write the rule down once, precisely enough that a new colleague would reach your verdicts, and let a model
+apply it. The catch is that the judge is itself a prompt you wrote. It inherits the blind spots of its model and the
+vagueness of its rubric, and it can be wrong in quiet ways.</p>
+
+<h2>How it works: what goes into a judge</h2>
+
+<p>A judge prompt has up to five parts, followed by the evidence for the case being judged. Hover, focus or tap each
+part below to see what it does and why it's there.</p>
+
+<div class="xp" data-xp="anatomy">
+<table>
+  <tr><th>Part</th><th>What it does</th></tr>
+  <tr><td>Context</td><td>What the application does, and the domain knowledge this check needs.</td></tr>
+  <tr><td>One precise criterion</td><td>A single rule, including what to ignore. "Cites at least one source document. Ignore formatting." beats "Is it high quality?"</td></tr>
+  <tr><td>Labelled examples (optional)</td><td>A few pass and fail cases with reasons. Add them only if accuracy needs it, since they cost tokens on every call.</td></tr>
+  <tr><td>Reasoning first, verdict last</td><td>Asks for the reasoning before the verdict. The reasoning is what you read when you disagree.</td></tr>
+  <tr><td>A way out</td><td>Lets the judge answer "unknown" when information is missing, rather than guess.</td></tr>
+  <tr><td>Evidence</td><td>The variables filled in per case: the input, the output, the retrieved context or a reference answer.</td></tr>
+</table>
+</div>
+
+<p>Beyond the prompt itself, I keep coming back to four design choices:</p>
+
+<ul>
+  <li><strong>Verdict shape.</strong> Prefer binary pass/fail or a category over a 1–5 scale. Nobody can say what
+    separates a 3 from a 4, and models have favourite numbers (GPT-3.5 leans towards 7). A pass/fail can be counted and
+    validated.</li>
+  <li><strong>Scope.</strong> One judge per failure mode, not a single "god evaluator". A score of "quality: 6/10"
+    doesn't tell anyone what to fix.</li>
+  <li><strong>Reference.</strong> Reference-based judging (compare with an expected answer) where you have labels, as in
+    tests and CI. Reference-free judging (check the output against a rule or against the context it was given) for live
+    traffic, where no expected answer exists.</li>
+  <li><strong>Granularity.</strong> For grounding checks, go claim by claim. The judge lists each factual claim and marks
+    it supported or not, and code computes the share. Never ask the judge to do the arithmetic.</li>
+</ul>
+
+<p>That last one deserves an example. <em>Faithfulness</em> (also called groundedness) asks whether every claim in an
+answer built from retrieved documents is supported by those documents. "Refunds take 5 business days and go to the
+original payment method" is two claims. If the retrieved policy supports only the first, the score is
+\(1 \div 2 = 0.5\), and the unsupported claim goes into the score's comment for whoever reads it next.</p>
+
+<h2>Measuring the judge: why raw agreement lies</h2>
+
+<p>Before trusting a judge you run it on cases a careful person has already labelled and compare. The obvious number is
+raw agreement: the share of cases where the two match. The trouble shows up whenever one verdict is much more common
+than the other. Try this one before reading on.</p>
+
+<div class="xp" data-xp="quiz">
+<table>
+  <tr><th>The "always pass" judge on 100 outputs</th><th>Value</th></tr>
+  <tr><td>Real failures (labelled by a person)</td><td>10</td></tr>
+  <tr><td>Raw agreement with the person</td><td>90 of 100</td></tr>
+  <tr><td>Failures it caught</td><td>0 of 10</td></tr>
+  <tr><td>Cohen's kappa</td><td>0</td></tr>
+</table>
+</div>
+
+<p>Ninety percent agreement, zero information. The fix is a number that subtracts the agreement you'd get by luck
+alone. That's <strong>Cohen's kappa</strong>:</p>
+
+\[ \kappa = \frac{p_o - p_e}{1 - p_e}, \qquad p_e = a_{\text{fail}} \times j_{\text{fail}} + a_{\text{pass}} \times j_{\text{pass}} \]
+
+<p>In words: \(p_o\) is the share of cases where judge and person agree. \(a_{\text{fail}}\) and \(a_{\text{pass}}\)
+are the shares the person labelled fail and pass, and \(j_{\text{fail}}\), \(j_{\text{pass}}\) the same for the judge.
+\(p_e\) is how often they'd agree if the judge picked labels at random in its own proportions. Kappa is 1 for perfect
+agreement, 0 for no better than luck, and below 0 for worse than luck. The usual reading is 0.81–1.0 almost perfect,
+0.61–0.80 substantial, 0.41–0.60 moderate, and below that fair to slight.</p>
+
+<p>I pair kappa with two numbers that look at the failures directly. <em>Recall</em> is the share of real failures the
+judge caught. <em>Precision</em> is the share of the judge's "fail" verdicts that were real. Their combination,
+\(F_1 = 2PR \div (P + R)\), is high only when both are.</p>
+
+<p>The gap between raw agreement and kappa is not a corner case. I recently read <a
+href="https://arxiv.org/abs/2606.19544">Reliability without Validity</a>, a large study of 21 judge models, and on one
+benchmark raw agreement overstated the judges by 33.8 to 41.3 percentage points compared with kappa. On another it was
+about 10. How much it flatters you depends on the label mix of your data, which is exactly why I don't want raw
+agreement as the headline.</p>
+
+<p>Here's a calculator for the whole thing. Pick a preset or type your own counts into the 2×2 table.</p>
+
+<div class="xp" data-xp="kappa">
+<table>
+  <tr><th></th><th>Judge: fail</th><th>Judge: pass</th></tr>
+  <tr><th>Person: fail (8)</th><td>7</td><td>1</td></tr>
+  <tr><th>Person: pass (32)</th><td>2</td><td>30</td></tr>
+</table>
+<p>Agreement 0.925, luck-level agreement 0.665, kappa 0.78 (substantial), recall 0.875, precision 0.78, F1 0.82.</p>
+</div>
+
+<h2>Three worked examples</h2>
+
+<h3>Customer support: was the conversation escalated?</h3>
+
+<p>One calibration example I came across used a judge to decide whether a support conversation had been handed to a
+human. It was run on 35 labelled conversations, 14 escalated and 21 not. The judge flagged 13 of the 14 and none of the
+21. Agreement is \((13 + 21) \div 35 = 0.971\). The person says "escalated" for \(14 \div 35 = 0.400\) of cases and the
+judge for \(13 \div 35 = 0.371\), so \(p_e = 0.400 \times 0.371 + 0.600 \times 0.629 = 0.526\) and
+\(\kappa = (0.971 - 0.526) \div (1 - 0.526) = 0.94\). Almost perfect. Recall is \(13 \div 14 = 0.929\) and precision
+\(13 \div 13 = 1.0\).</p>
+
+<p>The part I liked is the one miss. It was a genuinely borderline message ("Forget it, I'll email your CEO directly")
+where two of the rubric's own rules conflicted. The fix belonged in the rubric, not in a different model.</p>
+
+<h3>Education: checking a new marker</h3>
+
+<p>The same idea works away from software. A head teacher hands a new teaching assistant the marking scheme for an
+essay question and marks 40 essays alongside them. The head fails 8; the assistant fails 9, which are 7 of the head's 8
+plus 2 the head passed. Agreement is \((7 + 30) \div 40 = 0.925\), which sounds great until you notice that passing
+everyone would already score \(32 \div 40 = 0.8\). Luck-level agreement is
+\(0.2 \times 0.225 + 0.8 \times 0.775 = 0.665\), so \(\kappa = (0.925 - 0.665) \div (1 - 0.665) = 0.78\): substantial,
+not yet almost perfect. Recall \(7 \div 8 = 0.875\), precision \(7 \div 9 = 0.78\), \(F_1 = 0.82\). Reading the 3
+disagreements shows the line "uses evidence" was read two ways. One sentence of clarification and a second round of 40,
+and the assistant is ready. That's the default preset in the calculator above.</p>
+
+<h3>Agents: scoring tool-call plans</h3>
+
+<p>The third example is the one closest to what I build. <a href="https://arxiv.org/abs/2608.26623">AgentJudgeBench</a>
+scored agents' tool-call plans with six judges against a reference computed in code, and changed one judge setting at a
+time. What I took from it is that the knobs people argue about most matter least:</p>
+
+<table>
+  <tr><th>Setting changed</th><th>Effect on alignment with the reference</th></tr>
+  <tr><td>Thinking mode on vs off (QwQ-32B)</td><td>at most 0.3 points across all 24 paired cells</td></tr>
+  <tr><td>Sampling temperature 0.3, 0.7, 1.0</td><td>at most 0.6 points</td></tr>
+  <tr><td>Structured per-metric rubric with a JSON verdict, vs one free-form instruction</td><td>+4.8 to +6.5 points on one pairing; +3.9 / +2.4 / −0.8 (easy / medium / hard) on another</td></tr>
+  <tr><td>Default verdict of 1.0 vs 0.5 when no fault is found</td><td>+0.4 to +1.0 for strong agents, +4.1 and +5.6 for the two weakest</td></tr>
+</table>
+
+<p>So for structural scoring, the prompt's wording and defaults move the result far more than thinking or temperature.
+The authors are careful that prompt format is "impactful but judge/generator-dependent", so it's something to measure on
+your own setup rather than a guaranteed win. One more number from the same paper stuck with me: GPT-5.4 judging its own
+tool-call plans showed no overall self-preference, but over-credited its own call order by 0.172 on a 0–1 scale,
+against at most 0.008 for other agents' plans.</p>
+
+<h2>Calibration as a procedure, not a vibe</h2>
+
+<p>Each example above is one round of comparison. In practice I treat calibration like model training, with held-out
+data, because every look at the judge's mistakes leaks a little of that data into the prompt. One evals guide I came
+across turns this into fixed proportions. Step through it below.</p>
+
+<div class="xp" data-xp="loop">
+<svg viewBox="0 0 440 170" width="100%" style="max-width:600px" role="img" aria-label="The calibration loop: label real cases, write the judge prompt, run it on the labelled cases, check agreement with kappa, recall and precision; if they disagree, read the disagreements, tighten the rubric and run again; if they agree, ship and keep sampling">
+  <defs><marker id="lj-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/></marker></defs>
+  <g font-size="11" text-anchor="middle" style="fill: var(--text)">
+    <rect x="5" y="20" width="95" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="52" y="38">label real</text><text x="52" y="52">cases</text>
+    <rect x="120" y="20" width="95" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="167" y="38">write the</text><text x="167" y="52">judge prompt</text>
+    <rect x="235" y="20" width="95" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="282" y="38">run it on the</text><text x="282" y="52">labelled cases</text>
+    <rect x="350" y="12" width="85" height="56" rx="6" style="fill: var(--surface); stroke: var(--accent)" stroke-width="2"/>
+    <text x="392" y="30" font-size="10">agree?</text><text x="392" y="45" font-size="10">κ, recall,</text><text x="392" y="59" font-size="10">precision</text>
+    <rect x="235" y="110" width="95" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="282" y="128">read the</text><text x="282" y="142">disagreements</text>
+    <rect x="120" y="110" width="95" height="40" rx="6" style="fill: var(--surface); stroke: var(--border)"/><text x="167" y="128">tighten the</text><text x="167" y="142">rubric</text>
+    <rect x="350" y="110" width="85" height="40" rx="6" style="fill: var(--surface); stroke: var(--accent)"/><text x="392" y="128" style="fill: var(--accent)">ship, keep</text><text x="392" y="142" style="fill: var(--accent)">sampling</text>
+  </g>
+  <g fill="none" style="stroke: var(--muted)">
+    <path d="M100,40 L118,40" marker-end="url(#lj-arrow)"/><path d="M215,40 L233,40" marker-end="url(#lj-arrow)"/><path d="M330,40 L348,40" marker-end="url(#lj-arrow)"/>
+    <path d="M375,68 L320,108" marker-end="url(#lj-arrow)"/><path d="M235,130 L217,130" marker-end="url(#lj-arrow)"/><path d="M167,110 L167,62" marker-end="url(#lj-arrow)"/>
+    <path d="M405,68 L405,108" marker-end="url(#lj-arrow)"/>
+  </g>
+  <g font-size="9" style="fill: var(--muted)"><text x="328" y="96">no</text><text x="410" y="92">yes</text></g>
+</svg>
+</div>
+
+<p>The short version: label 100–200 examples per failure mode with a trusted domain expert. Keep 10–20% as a pool for
+few-shot examples, 40–45% as a dev set you iterate against, and 40–45% as a test set you score once, at the end. With
+150 labels that's about 22, 64 and 64. Aim for 30–50 passes and 30–50 fails in each of dev and test, and report the
+true positive rate (failures caught) and the true negative rate (good outputs passed) rather than accuracy, ideally both
+above 90%. If test comes out much worse than dev, suspect overfitting, though small samples can cause a gap too.</p>
+
+<h2>The production perspective</h2>
+
+<p><strong>Cost scales with three numbers.</strong> Judge spend is volume × sampling rate × cost per call. That's easy
+to say and easy to forget when someone switches sampling from 5% to 100% "just for this week". I'd put a cost alert
+next to the quality alert from day one.</p>
+
+<div class="xp" data-xp="cost">
+<table>
+  <tr><th>Input</th><th>Value</th></tr>
+  <tr><td>Replies per day</td><td>200,000</td></tr>
+  <tr><td>Share judged</td><td>5% = 10,000</td></tr>
+  <tr><td>Cost per judge call</td><td>$0.02</td></tr>
+  <tr><td>Judge cost per day</td><td>$200</td></tr>
+  <tr><td>Same volume by human review, 2 min each</td><td>about 333 hours</td></tr>
+</table>
+</div>
+
+<p>To keep that number down: use code wherever a rule can settle the question, run cheap code checks first and send
+only flagged cases to the judge, sample live traffic, and judge the one step you care about rather than the whole run.
+Long contexts cost more on every call, which leads to the next point.</p>
+
+<p><strong>Show the judge less.</strong> Give each judge only the parts of the trace its failure mode needs. Extra
+context can make it worse, not better. The way I'd settle it is an ablation: remove one piece at a time, re-score
+against the human labels, and leave out anything whose removal doesn't hurt agreement.</p>
+
+<p><strong>Judges score after the fact.</strong> Evaluators usually run asynchronously, after the user has already
+seen the answer. If something has to stop a bad answer in flight, that's a guardrail inside the application, with its
+own latency budget, not an evaluator. A "safety judge" that runs after the reply has been sent can tell you about a
+problem, but it can't prevent one.</p>
+
+<p><strong>The same case can get different verdicts.</strong> Temperature 0 makes a judge more repeatable, not perfectly
+so. I version the judge like code (prompt, model and score definition together) and record the version on every score.
+A changed judge means re-scoring both sides of any comparison.</p>
+
+<p><strong>Whatever you optimise against, you overfit.</strong> If prompts are tuned until the judge is happy, the
+application learns the judge's blind spots. That's Goodhart's law: a measure that becomes a target stops measuring well.
+Fresh human labels every so often are the only defence I know.</p>
+
+<p><strong>Same model or a different one?</strong> The usual advice is a different, stronger model, because a judge
+from the same family tends to miss the same mistakes. The evals guide I mentioned argues that for narrow pass/fail
+judges the same model is usually fine, since the judge is doing a different task. I land in the middle: measured
+agreement on held-out labels decides, whichever model it is.</p>
+
+<p><strong>Some well-known biases may be smaller than you think.</strong> The <a
+href="https://arxiv.org/abs/2606.19544">Reliability without Validity</a> study measured verbosity bias (rating longer
+answers higher) as the correlation between the length difference of two answers and the judge's pairwise verdict. All
+21 judges scored below 0.011, which means length explains about 0.01% of the verdicts' spread (0.011 squared). The
+authors don't claim it's gone under every rubric, so I still audit for it, but it's no longer the first thing I'd fix.
+Position bias (preferring whichever answer is shown first) and marking a claim supported because it's true in general,
+though the context never said it, still get explicit checks.</p>
+
+<p>The same paper ends with a minimum checklist I'd run before deploying any judge: report a chance-corrected number
+like kappa; run every pair in both orders; repeat at least 3 runs at temperature 0 with caching off; test on at least
+two benchmarks, one preference-style and one correctness-style; and if repeat runs agree above 0.95, confirm position
+bias is below 0.10 before calling the judge reliable, because a judge that gives the same verdict every time can still
+be giving the wrong one.</p>
+
+<p><strong>What I'd do differently.</strong> Label before writing the judge, not after. The tempting shortcut is to
+tune the prompt against a handful of examples you remember, and that tends to look fine until someone labels a proper
+test set. I'd also trace every judge call like any other model call, with its input, rendered prompt,
+reasoning and cost, so a strange verdict can be debugged instead of argued about.</p>
+
+<aside class="xp-leaders" aria-label="What this means for leaders" style="margin:2em 0;padding:1rem 1.2rem;border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius);background:var(--bg-elev)"><p><strong>What this means for leaders.</strong> A judge model makes quality checks affordable at scale: at $0.02 a call, judging 10,000 replies a day costs about $200, against roughly 333 hours of expert review. The risk is a judge nobody measured, which can report 90% agreement and catch nothing. The decision to make is whether any judge can go live without a chance-corrected agreement score on held-out human labels. Ask your team: what is this judge's kappa, and on how many labelled cases? How many real failures does it catch? Which judge version produced this trend line, and who still reviews a sample by hand?</p></aside>
+
+<h2>Takeaways</h2>
+
+<ul>
+  <li>A judge is a second model applying a written rule. Write one precise criterion per failure mode, ask for
+    reasoning before the verdict, and allow "unknown".</li>
+  <li>Prefer pass/fail over 1–5 scales, and claim-by-claim checks with the arithmetic in code.</li>
+  <li>Raw agreement flatters a judge whenever one verdict dominates. Report kappa, plus recall and precision on the
+    failures.</li>
+  <li>Calibrate with train, dev and test splits, and score the test set once.</li>
+  <li>In production, budget volume × sampling × cost per call, version the judge, show it only the context it needs,
+    and keep a human sample running.</li>
+</ul>
+
+<p>I'm curious how other teams handle this. Do you report kappa for your judges, or is raw agreement still the number
+on the dashboard?</p>
+
+<h2>References</h2>
+
+<ul>
+  <li>Norman et al. (2026). <a href="https://arxiv.org/abs/2606.19544">Reliability without Validity: A Systematic,
+    Large-Scale Evaluation of LLM-as-a-Judge Models Across Agreement, Consistency, and Bias</a>. arXiv:2606.19544.</li>
+  <li>Verma et al. (2026). <a href="https://arxiv.org/abs/2608.26623">AgentJudgeBench: A Multi-Difficulty Benchmark for
+    Evaluating LLM Judges on Agentic Tool-Calling</a>. arXiv:2608.26623.</li>
+</ul>
+
+<script src="/assets/js/xp.js" defer></script><script src="/assets/explorables/llm-as-judge-calibration/widgets.js" defer></script>
+
+{% endraw %}
