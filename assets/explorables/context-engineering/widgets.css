@@ -1,0 +1,23 @@
+/* Widgets for "Context Engineering". Shared pieces live in the site's xp.css. */
+.cx-math { overflow-x: auto; max-width: 100%; }
+.cx-layers { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.cx-chip { font-size: 0.78rem; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: var(--bg); }
+.cx-chip.is-past { color: var(--text); }
+.cx-chip.is-on { border-color: var(--accent); color: var(--accent); font-weight: 650; }
+.cx-hooks { display: flex; flex-direction: column; gap: 0.35rem; }
+.cx-hook { display: flex; flex-wrap: wrap; gap: 0.15rem 0.75rem; justify-content: space-between; align-items: baseline; width: 100%; font: inherit; font-size: 0.92rem; text-align: left; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.7rem; cursor: pointer; overflow-wrap: anywhere; }
+.cx-hook span { color: var(--muted); font-size: 0.8rem; }
+.cx-hook.is-on { border-color: var(--accent); }
+.cx-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.cx-stat { min-width: 0; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.cx-stat span { display: block; font-size: 0.75rem; color: var(--muted); }
+.cx-stat b { display: block; color: var(--accent); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.cx-bars { display: grid; grid-template-columns: minmax(0, 7.5rem) minmax(0, 1fr); gap: 0.35rem 0.6rem; align-items: center; }
+.cx-bl { font-size: 0.78rem; color: var(--muted); }
+.cx-out { overflow-wrap: anywhere; }
+.cx-tools .xp-switch { max-width: 100%; height: auto; white-space: normal; flex-wrap: wrap; }
+
+@media (max-width: 420px) {
+  .cx-stats { grid-template-columns: 1fr; }
+  .cx-bars { grid-template-columns: minmax(0, 1fr); }
+}
